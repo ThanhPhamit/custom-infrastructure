@@ -82,7 +82,9 @@ module "rds_monitoring_role" {
   source     = "../iam_role"
   name       = "${var.app_name}-rds-monitoring-role"
   identifier = "monitoring.rds.amazonaws.com"
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
+  policy_arns_map = {
+    "policy_1" = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
+  }
 }
 
 resource "aws_db_instance" "db" {
@@ -158,14 +160,18 @@ module "rds_s3_export_role" {
   source     = "../iam_role"
   name       = "${var.app_name}-rds-s3-export-role"
   identifier = "rds.amazonaws.com"
-  policy_arn = aws_iam_policy.rds_s3_integration.arn
+  policy_arns_map = {
+    "policy_1" = aws_iam_policy.rds_s3_integration.arn
+  }
 }
 
 module "rds_s3_import_role" {
   source     = "../iam_role"
   name       = "${var.app_name}-rds-s3-import-role"
   identifier = "rds.amazonaws.com"
-  policy_arn = aws_iam_policy.rds_s3_integration.arn
+  policy_arns_map = {
+    "policy_1" = aws_iam_policy.rds_s3_integration.arn
+  }
 }
 
 resource "aws_db_instance_role_association" "db_export" {

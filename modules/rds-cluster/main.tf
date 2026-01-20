@@ -112,7 +112,9 @@ module "rds_monitoring_role" {
   source     = "../iam_role"
   name       = "${var.name}-rds-monitoring-role"
   identifier = "monitoring.rds.amazonaws.com"
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
+  policy_arns_map = {
+    "policy_1" = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
+  }
 }
 
 #############################
@@ -248,7 +250,7 @@ resource "aws_rds_cluster" "primary" {
   db_cluster_parameter_group_name  = aws_rds_cluster_parameter_group.aurora_cluster_parameter_group_p.id
   db_instance_parameter_group_name = var.allow_major_version_upgrade ? aws_db_parameter_group.aurora_db_parameter_group_p.id : null
 
-  storage_type      = var.storage_type
+  storage_type = var.storage_type
 
   vpc_security_group_ids = [aws_security_group.primary-cluster.id]
   db_subnet_group_name   = aws_db_subnet_group.private_p.name
@@ -402,14 +404,18 @@ module "rds_s3_export_role" {
   source     = "../iam_role"
   name       = "${var.identifier}-rds-s3-export-role"
   identifier = "rds.amazonaws.com"
-  policy_arn = aws_iam_policy.rds_s3_integration.arn
+  policy_arns_map = {
+    "policy_1" = aws_iam_policy.rds_s3_integration.arn
+  }
 }
 
 module "rds_s3_import_role" {
   source     = "../iam_role"
   name       = "${var.identifier}-rds-s3-import-role"
   identifier = "rds.amazonaws.com"
-  policy_arn = aws_iam_policy.rds_s3_integration.arn
+  policy_arns_map = {
+    "policy_1" = aws_iam_policy.rds_s3_integration.arn
+  }
 }
 
 resource "aws_rds_cluster_role_association" "db_export" {

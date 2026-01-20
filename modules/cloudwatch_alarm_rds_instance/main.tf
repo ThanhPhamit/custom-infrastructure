@@ -1,5 +1,9 @@
 #
-# notice の slack 通知
+# CloudWatch metric alarms for RDS instances with SNS-backed Slack notifications
+#
+
+#
+# CPU utilization (Notice) — informational alarm; publishes to the configured "notice" SNS topic (Slack)
 #
 resource "aws_cloudwatch_metric_alarm" "rds_cpu_utilization_notice" {
   alarm_name          = "${var.app_name}_rds_cpu_utilization_notice"
@@ -15,10 +19,17 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu_utilization_notice" {
   dimensions = {
     DBInstanceIdentifier = var.rds_db_instance_identifier
   }
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.app_name}-rds-cpu-utilization-notice"
+    }
+  )
 }
 
 #
-# alert の slack 通知
+# CPU utilization (Alert) — critical alarm; publishes to the configured "alert" SNS topic (Slack)
 #
 resource "aws_cloudwatch_metric_alarm" "rds_cpu_utilization_alert" {
   alarm_name          = "${var.app_name}_rds_cpu_utilization_alert"
@@ -34,11 +45,18 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu_utilization_alert" {
   dimensions = {
     DBInstanceIdentifier = var.rds_db_instance_identifier
   }
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.app_name}-rds-cpu-utilization-alert"
+    }
+  )
 }
 
 
 #
-# notice for memory
+# Freeable memory (Notice) — informational low-memory alarm; publishes to the configured "notice" SNS topic (Slack)
 #
 resource "aws_cloudwatch_metric_alarm" "rds_freeable_memory_notice" {
   alarm_name          = "${var.app_name}_rds_freeable_memory_notice"
@@ -54,10 +72,17 @@ resource "aws_cloudwatch_metric_alarm" "rds_freeable_memory_notice" {
   dimensions = {
     DBInstanceIdentifier = var.rds_db_instance_identifier
   }
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.app_name}-rds-freeable-memory-notice"
+    }
+  )
 }
 
 #
-# alert for memory
+# Freeable memory (Alert) — critical low-memory alarm; publishes to the configured "alert" SNS topic (Slack)
 #
 resource "aws_cloudwatch_metric_alarm" "rds_freeable_memory_alert" {
   alarm_name          = "${var.app_name}_rds_freeable_memory_alert"
@@ -73,10 +98,17 @@ resource "aws_cloudwatch_metric_alarm" "rds_freeable_memory_alert" {
   dimensions = {
     DBInstanceIdentifier = var.rds_db_instance_identifier
   }
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.app_name}-rds-freeable-memory-alert"
+    }
+  )
 }
 
 #
-# notice for storage
+# Free storage space (Notice) — informational low-storage alarm; publishes to the configured "notice" SNS topic (Slack)
 #
 resource "aws_cloudwatch_metric_alarm" "rds_freeable_storage_space_notice" {
   alarm_name          = "${var.app_name}_rds_freeable_storage_space_notice"
@@ -92,11 +124,18 @@ resource "aws_cloudwatch_metric_alarm" "rds_freeable_storage_space_notice" {
   dimensions = {
     DBInstanceIdentifier = var.rds_db_instance_identifier
   }
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.app_name}-rds-freeable-storage-space-notice"
+    }
+  )
 }
 
 
 #
-# alert for storage
+# Free storage space (Alert) — critical low-storage alarm; publishes to the configured "alert" SNS topic (Slack)
 #
 resource "aws_cloudwatch_metric_alarm" "rds_freeable_storage_space_alert" {
   alarm_name          = "${var.app_name}_rds_freeable_storage_space_alert"
@@ -112,4 +151,11 @@ resource "aws_cloudwatch_metric_alarm" "rds_freeable_storage_space_alert" {
   dimensions = {
     DBInstanceIdentifier = var.rds_db_instance_identifier
   }
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.app_name}-rds-freeable-storage-space-alert"
+    }
+  )
 }
