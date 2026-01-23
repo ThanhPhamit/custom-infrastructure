@@ -88,7 +88,7 @@ module "rds" {
   replica_availability_zone = "ap-northeast-1c"
 
   # Backup
-  backup_retention_period   = 35
+  backup_retention_period   = 7
   skip_final_snapshot       = false
   final_snapshot_identifier = "myapp-prod-db-final"
 
