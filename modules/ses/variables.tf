@@ -3,9 +3,9 @@ variable "domain_name" {
   type    = string
   default = null
 }
-variable "route_53_zone_id" {
-  type = string
-}
+# variable "route_53_zone_id" {
+#   type = string
+# }
 variable "email_identities" {
   description = "List of email identities to be verified in SES"
   type        = list(string)
