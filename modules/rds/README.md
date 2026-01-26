@@ -68,21 +68,83 @@ module "rds" {
 module "rds" {
   source = "../../modules/rds"
 
-  app_name           = "${var.environment}-${var.app_name}"
-  db_name            = "${var.environment}-${var.app_name}-db"
-  vpc_id             = module.network.vpc_id
-  private_subnet_ids = module.network.private_subnets
-  availability_zone  = "ap-northeast-1a"
+  app_name = "${var.environment}-${var.app_name}"
+  db_name  = "${var.environment}-${var.app_name}-db"
+  vpc_id   = module.vpc.vpc_id
 
-  # Database
-  db_database = "production"
-  db_username = "dbadmin"
-  db_port     = 5432
+  # Use subnet group from network module
+  db_subnet_group_name = module.vpc.database_subnet_group_name
 
-  # Engine
+  # Single AZ (set multi_az = true for high availability)
+  availability_zone = "${var.region}${var.azs_name[0]}"
+  multi_az          = false
+  create_replica    = false
+
+  # Engine configuration
   engine         = "postgres"
-  engine_version = "17.2"
-  engine_family  = "postgres17"
+  engine_version = "18.1"
+  engine_family  = "postgres18"
+  instance_class = "db.t4g.micro"
+
+  # Storage
+  allocated_storage     = 20
+  max_allocated_storage = 100
+  storage_type          = "gp3"
+  storage_encrypted     = true
+
+  # Database credentials (auto-generated and stored in Secrets Manager)
+  db_database = "myapp"
+  db_username = "dbadmin"
+
+  # Backup - Production config
+  backup_retention_period   = 35
+  backup_window             = "18:00-19:00" # UTC = 03:00-04:00 JST
+  delete_automated_backups  = false
+  skip_final_snapshot       = false
+  final_snapshot_identifier = "${var.environment}-${var.app_name}-db-final-snapshot"
+
+  # Security - Production config
+  deletion_protection           = true
+  restricted_security_group_ids = [module.ecs_api.ecs_security_group_id]
+
+  # Monitoring - Production config
+  monitoring_interval                   = 60
+  performance_insights_enabled          = true
+  performance_insights_retention_period = 7
+  enabled_cloudwatch_logs_exports       = ["postgresql", "upgrade"]
+
+  # Parameter group
+  create_parameter_group = true
+
+  tags = {
+    Environment = "production"
+    Terraform   = "true"
+  }
+}
+```
+
+### Example 3: Production with High Availability
+
+```terraform
+module "rds" {
+  source = "../../modules/rds"
+
+  app_name = "${var.environment}-${var.app_name}"
+  db_name  = "${var.environment}-${var.app_name}-db"
+  vpc_id   = module.vpc.vpc_id
+
+  db_subnet_group_name = module.vpc.database_subnet_group_name
+
+  # High Availability
+  availability_zone         = "${var.region}a"
+  multi_az                  = true
+  create_replica            = true
+  replica_availability_zone = "${var.region}c"
+
+  # Engine configuration
+  engine         = "postgres"
+  engine_version = "18.1"
+  engine_family  = "postgres18"
   instance_class = "db.r6g.large"
 
   # Storage
@@ -91,28 +153,32 @@ module "rds" {
   storage_type          = "gp3"
   storage_encrypted     = true
 
-  # High Availability
-  multi_az                  = true
-  create_replica            = true
-  replica_availability_zone = "ap-northeast-1c"
+  # Database credentials
+  db_database = "production"
+  db_username = "dbadmin"
 
   # Backup
-  backup_retention_period   = 7
+  backup_retention_period   = 35
+  backup_window             = "18:00-19:00"
+  delete_automated_backups  = false
   skip_final_snapshot       = false
-  final_snapshot_identifier = "myapp-prod-db-final"
+  final_snapshot_identifier = "${var.environment}-${var.app_name}-db-final-snapshot"
 
   # Security
+  deletion_protection           = true
   restricted_security_group_ids = [
     module.ecs_web.ecs_security_group_id,
     module.ecs_api.ecs_security_group_id
   ]
-  deletion_protection = true
 
   # Monitoring
   monitoring_interval                   = 60
   performance_insights_enabled          = true
   performance_insights_retention_period = 7
   enabled_cloudwatch_logs_exports       = ["postgresql", "upgrade"]
+
+  # Parameter group
+  create_parameter_group = true
 
   # S3 Integration (optional)
   enable_s3_integration = true
@@ -125,21 +191,32 @@ module "rds" {
 }
 ```
 
-### Example 3: Using Existing Subnet Group
+### Example 4: Using Existing Subnet Group (Minimal)
 
 ```terraform
 module "rds" {
   source = "../../modules/rds"
 
-  app_name          = "${var.environment}-${var.app_name}"
-  db_name           = "${var.environment}-${var.app_name}-db"
-  vpc_id            = module.network.vpc_id
-  availability_zone = "ap-northeast-1a"
+  app_name = "${var.environment}-${var.app_name}"
+  db_name  = "${var.environment}-${var.app_name}-db"
+  vpc_id   = module.vpc.vpc_id
 
   # Use subnet group from network module
-  db_subnet_group_name = module.network.database_subnet_group_name
+  db_subnet_group_name = module.vpc.database_subnet_group_name
+  availability_zone    = "${var.region}a"
 
-  # ... other configuration ...
+  # Engine
+  engine         = "postgres"
+  engine_version = "18.1"
+  engine_family  = "postgres18"
+
+  # Database
+  db_database = "myapp"
+
+  # Security
+  restricted_security_group_ids = [module.ecs_api.ecs_security_group_id]
+
+  tags = local.tags
 }
 ```
 
@@ -174,37 +251,44 @@ The module automatically configures these parameters:
 
 ## Inputs
 
-| Name                          | Description                               | Type           | Default          | Required |
-| ----------------------------- | ----------------------------------------- | -------------- | ---------------- | :------: |
-| app_name                      | Application name for resource naming      | `string`       | n/a              |   yes    |
-| db_name                       | Database identifier                       | `string`       | n/a              |   yes    |
-| vpc_id                        | VPC ID                                    | `string`       | n/a              |   yes    |
-| availability_zone             | Primary availability zone                 | `string`       | n/a              |   yes    |
-| private_subnet_ids            | Subnet IDs for DB subnet group            | `list(string)` | `[]`             |   no\*   |
-| db_subnet_group_name          | Existing DB subnet group name             | `string`       | `null`           |   no\*   |
-| db_database                   | Database name                             | `string`       | `"main"`         |    no    |
-| db_username                   | Master username                           | `string`       | `"dbadmin"`      |    no    |
-| db_password                   | Master password (auto-generated if empty) | `string`       | `""`             |    no    |
-| db_port                       | Database port                             | `number`       | `5432`           |    no    |
-| engine                        | Database engine                           | `string`       | `"postgres"`     |    no    |
-| engine_version                | Engine version                            | `string`       | `"17.2"`         |    no    |
-| engine_family                 | Parameter group family                    | `string`       | `"postgres17"`   |    no    |
-| instance_class                | Instance class                            | `string`       | `"db.t4g.micro"` |    no    |
-| allocated_storage             | Initial storage (GB)                      | `number`       | `20`             |    no    |
-| max_allocated_storage         | Max storage for autoscaling (GB)          | `number`       | `100`            |    no    |
-| storage_type                  | Storage type (gp2, gp3, io1)              | `string`       | `"gp3"`          |    no    |
-| storage_encrypted             | Enable encryption                         | `bool`         | `true`           |    no    |
-| multi_az                      | Enable Multi-AZ                           | `bool`         | `false`          |    no    |
-| create_replica                | Create read replica                       | `bool`         | `false`          |    no    |
-| replica_availability_zone     | Replica AZ                                | `string`       | `null`           |    no    |
-| backup_retention_period       | Backup retention (days)                   | `number`       | `35`             |    no    |
-| skip_final_snapshot           | Skip final snapshot                       | `bool`         | `false`          |    no    |
-| deletion_protection           | Enable deletion protection                | `bool`         | `true`           |    no    |
-| restricted_security_group_ids | Allowed security groups                   | `list(string)` | `[]`             |    no    |
-| monitoring_interval           | Enhanced monitoring interval              | `number`       | `0`              |    no    |
-| performance_insights_enabled  | Enable Performance Insights               | `bool`         | `false`          |    no    |
-| enable_s3_integration         | Enable S3 integration (PostgreSQL)        | `bool`         | `false`          |    no    |
-| tags                          | Tags to apply to resources                | `map(string)`  | `{}`             |    no    |
+| Name                                  | Description                               | Type           | Default          | Required |
+| ------------------------------------- | ----------------------------------------- | -------------- | ---------------- | :------: |
+| app_name                              | Application name for resource naming      | `string`       | n/a              |   yes    |
+| db_name                               | Database identifier                       | `string`       | n/a              |   yes    |
+| vpc_id                                | VPC ID                                    | `string`       | n/a              |   yes    |
+| availability_zone                     | Primary availability zone                 | `string`       | n/a              |   yes    |
+| private_subnet_ids                    | Subnet IDs for DB subnet group            | `list(string)` | `[]`             |   no\*   |
+| db_subnet_group_name                  | Existing DB subnet group name             | `string`       | `null`           |   no\*   |
+| db_database                           | Database name                             | `string`       | `"main"`         |    no    |
+| db_username                           | Master username                           | `string`       | `"dbadmin"`      |    no    |
+| db_password                           | Master password (auto-generated if empty) | `string`       | `""`             |    no    |
+| db_port                               | Database port                             | `number`       | `5432`           |    no    |
+| engine                                | Database engine                           | `string`       | `"postgres"`     |    no    |
+| engine_version                        | Engine version                            | `string`       | `"17.2"`         |    no    |
+| engine_family                         | Parameter group family                    | `string`       | `"postgres17"`   |    no    |
+| instance_class                        | Instance class                            | `string`       | `"db.t4g.micro"` |    no    |
+| allocated_storage                     | Initial storage (GB)                      | `number`       | `20`             |    no    |
+| max_allocated_storage                 | Max storage for autoscaling (GB)          | `number`       | `100`            |    no    |
+| storage_type                          | Storage type (gp2, gp3, io1)              | `string`       | `"gp3"`          |    no    |
+| storage_encrypted                     | Enable encryption                         | `bool`         | `true`           |    no    |
+| multi_az                              | Enable Multi-AZ                           | `bool`         | `false`          |    no    |
+| create_replica                        | Create read replica                       | `bool`         | `false`          |    no    |
+| replica_availability_zone             | Replica AZ                                | `string`       | `null`           |    no    |
+| backup_retention_period               | Backup retention (days)                   | `number`       | `35`             |    no    |
+| backup_window                         | Backup window (UTC)                       | `string`       | `"18:00-19:00"`  |    no    |
+| delete_automated_backups              | Delete automated backups on termination   | `bool`         | `false`          |    no    |
+| skip_final_snapshot                   | Skip final snapshot                       | `bool`         | `false`          |    no    |
+| final_snapshot_identifier             | Final snapshot name                       | `string`       | `null`           |    no    |
+| deletion_protection                   | Enable deletion protection                | `bool`         | `true`           |    no    |
+| restricted_security_group_ids         | Allowed security groups                   | `list(string)` | `[]`             |    no    |
+| monitoring_interval                   | Enhanced monitoring interval (seconds)    | `number`       | `0`              |    no    |
+| performance_insights_enabled          | Enable Performance Insights               | `bool`         | `false`          |    no    |
+| performance_insights_retention_period | Performance Insights retention (days)     | `number`       | `7`              |    no    |
+| enabled_cloudwatch_logs_exports       | CloudWatch log exports                    | `list(string)` | `[]`             |    no    |
+| create_parameter_group                | Create custom parameter group             | `bool`         | `true`           |    no    |
+| enable_s3_integration                 | Enable S3 integration (PostgreSQL)        | `bool`         | `false`          |    no    |
+| s3_bucket_arns                        | S3 bucket ARNs for integration            | `list(string)` | `[]`             |    no    |
+| tags                                  | Tags to apply to resources                | `map(string)`  | `{}`             |    no    |
 
 \*Either `private_subnet_ids` or `db_subnet_group_name` must be provided
 

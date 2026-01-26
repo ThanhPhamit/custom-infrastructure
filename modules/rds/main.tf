@@ -77,18 +77,6 @@ resource "aws_security_group_rule" "db_from_sg" {
   source_security_group_id = var.restricted_security_group_ids[count.index]
 }
 
-# Ingress rules from CIDR blocks
-resource "aws_security_group_rule" "db_from_cidr" {
-  count = length(var.allowed_cidr_blocks) > 0 ? 1 : 0
-
-  security_group_id = aws_security_group.db.id
-  type              = "ingress"
-  from_port         = var.db_port
-  to_port           = var.db_port
-  protocol          = "tcp"
-  cidr_blocks       = var.allowed_cidr_blocks
-}
-
 #--------------------------------------------------------------
 # Password Management (Secrets Manager)
 #--------------------------------------------------------------

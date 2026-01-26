@@ -184,12 +184,6 @@ variable "restricted_security_group_ids" {
   default     = []
 }
 
-variable "allowed_cidr_blocks" {
-  type        = list(string)
-  description = "List of CIDR blocks allowed to access the RDS instance"
-  default     = []
-}
-
 variable "deletion_protection" {
   type        = bool
   description = "Enable deletion protection"
