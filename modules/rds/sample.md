@@ -1,140 +1,180 @@
-# RDS Instance Module - Sample Usage
+# RDS Unified Module - Sample Usage
 
-## main.tf
+## Tính năng chính
+
+✅ Auto-generated password (Secrets Manager)  
+✅ Read Replica (optional)  
+✅ Enhanced Monitoring & Performance Insights  
+✅ S3 Integration (PostgreSQL)  
+✅ Custom Parameter Groups
+
+---
+
+## Example 1: Development
 
 ```terraform
 module "rds" {
-  source = "../modules/rds"
+  source = "../../modules/rds-unified"
 
-  app_name = "${var.environment}-${var.app_name}"
-
-  db_name     = var.db_name
-  db_username = var.db_username
-  db_port     = var.db_port
-  db_database = var.db_name
-
+  app_name           = "myapp-dev"
+  db_name            = "myapp-dev-db"
   vpc_id             = module.network.vpc_id
   private_subnet_ids = module.network.private_subnet_ids
-  availability_zone  = "${var.region}${var.azs_name[0]}"
-  multi_az           = var.db_multi_az
+  availability_zone  = "ap-northeast-1a"
 
-  engine               = var.db_engine
-  engine_version       = var.db_engine_version
-  instance_class       = var.db_instance_class
-  parameter_group_name = var.parameter_group_name
+  # Database
+  db_database = "myapp"
+  db_username = "dbadmin"
 
-  allocated_storage     = var.db_allocated_storage
-  max_allocated_storage = var.db_allocated_storage * 2
+  # Engine
+  engine         = "postgres"
+  engine_version = "17.2"
+  engine_family  = "postgres17"
+  instance_class = "db.t4g.micro"
 
-  # TODO: Monitoring
-  enabled_cloudwatch_logs_exports = ["error", "slowquery"]
-  restricted_security_group_ids = [
-    module.ecs_client.ecs_security_group_id,
-    module.ecs_admin.ecs_security_group_id,
-    # module.bastion_host.bastion_security_group_id
-  ]
+  # Storage
+  allocated_storage     = 20
+  max_allocated_storage = 100
 
-  tags = local.tags
+  # Security
+  restricted_security_group_ids = [module.ecs.security_group_id]
+
+  # Development settings
+  deletion_protection          = false
+  skip_final_snapshot          = true
+  multi_az                     = false
+  create_replica               = false
+  performance_insights_enabled = false
+  monitoring_interval          = 0
+
+  tags = { Environment = "development" }
 }
 ```
 
-## variables.tf
+---
+
+## Example 2: Production PostgreSQL
 
 ```terraform
-variable "db_engine" {
-  description = "Database engine"
-  type        = string
-  default     = "mysql"
-}
+module "rds" {
+  source = "../../modules/rds-unified"
 
-variable "db_engine_version" {
-  description = "Database engine version"
-  type        = string
-  default     = "8.0"
-}
+  app_name           = "myapp-prod"
+  db_name            = "myapp-prod-db"
+  vpc_id             = module.network.vpc_id
+  private_subnet_ids = module.network.private_subnet_ids
+  availability_zone  = "ap-northeast-1a"
 
-variable "db_instance_class" {
-  description = "RDS instance class"
-  type        = string
-  default     = "db.t3.micro"
-}
-variable "parameter_group_name" {
-  type = string
-}
-variable "db_allocated_storage" {
-  description = "Allocated storage in GB"
-  type        = number
-  default     = 20
-}
+  # Database
+  db_database = "production"
+  db_username = "dbadmin"
+  db_port     = 5432
 
-variable "db_name" {
-  description = "Database name"
-  type        = string
-  default     = "focuson"
-}
+  # Engine
+  engine         = "postgres"
+  engine_version = "17.2"
+  engine_family  = "postgres17"
+  instance_class = "db.r6g.large"
 
-variable "db_username" {
-  description = "Database master username"
-  type        = string
-  default     = "admin"
-}
+  # Storage
+  allocated_storage     = 100
+  max_allocated_storage = 1000
+  storage_type          = "gp3"
+  storage_encrypted     = true
 
-variable "db_port" {
-  description = "Database port"
-  type        = number
-  default     = 3306
-}
+  # High Availability
+  multi_az                  = true
+  create_replica            = true
+  replica_availability_zone = "ap-northeast-1c"
 
-variable "db_multi_az" {
-  description = "Enable multi-AZ deployment"
-  type        = bool
-  default     = false
-}
+  # Backup
+  backup_retention_period   = 7
+  skip_final_snapshot       = false
+  final_snapshot_identifier = "myapp-prod-db-final"
 
-# Bastion Host Module
-variable "bastion_ami_id" {
-  description = "AMI ID for the bastion host EC2 instance"
-  type        = string
-}
+  # Security
+  restricted_security_group_ids = [
+    module.ecs_web.security_group_id,
+    module.ecs_api.security_group_id
+  ]
+  deletion_protection = true
 
-variable "bastion_instance_type" {
-  description = "Instance type for bastion host"
-  type        = string
-  default     = "t3.micro"
-}
+  # Monitoring
+  monitoring_interval                   = 60
+  performance_insights_enabled          = true
+  performance_insights_retention_period = 7
+  enabled_cloudwatch_logs_exports       = ["postgresql", "upgrade"]
 
-variable "bastion_key_pair_name" {
-  description = "Name of the EC2 Key Pair for bastion host SSH access"
-  type        = string
-}
+  # Recommended PostgreSQL Parameters (auto-included)
+  # - pg_stat_statements for query analysis
+  # - UTF8 encoding
+  # - Query tracking
 
-variable "create_bastion_eip" {
-  description = "Whether to create an Elastic IP for the bastion host"
-  type        = bool
-  default     = true
-}
-variable "allowed_ssh_cidr_blocks" {
-  description = "List of CIDR blocks allowed to SSH to the bastion host"
-  type        = list(string)
+  # S3 Integration (optional)
+  enable_s3_integration = true
+  s3_bucket_arns        = ["arn:aws:s3:::myapp-db-backups/*"]
+
+  tags = { Environment = "production" }
 }
 ```
 
-## terraform.tfvars
+---
 
-```hcl
-db_engine            = "mysql"
-db_engine_version    = "8.0"
-db_instance_class    = "db.t3.small"
-parameter_group_name = "default.mysql8.0"
-db_allocated_storage = 20
-db_name              = "focuson"
-db_username          = "admin"
-db_port              = 3306
-db_multi_az          = false
+## Recommended Parameter Group Settings
+
+Module tự động cấu hình các parameters sau cho **PostgreSQL**:
+
+| Parameter                   | Value                | Mục đích                   |
+| --------------------------- | -------------------- | -------------------------- |
+| `shared_preload_libraries`  | `pg_stat_statements` | Query performance analysis |
+| `pg_stat_statements.track`  | `all`                | Track tất cả queries       |
+| `pg_stat_statements.max`    | `10000`              | Số queries lưu trữ         |
+| `track_activity_query_size` | `2048`               | Query text length          |
+| `client_encoding`           | `UTF8`               | Character encoding         |
+
+### Thêm Custom Parameters (nếu cần):
+
+```terraform
+custom_parameters = [
+  # Slow query logging
+  { name = "log_min_duration_statement", value = "1000" },  # Log queries > 1s
+
+  # Connection tuning
+  { name = "max_connections", value = "200" },
+
+  # Memory tuning (cho instance lớn)
+  { name = "shared_buffers", value = "{DBInstanceClassMemory/4}" },
+  { name = "work_mem", value = "262144" },  # 256MB
+]
 ```
+
+### Dùng Default Parameter Group (Development only):
+
+```terraform
+create_parameter_group = false
+parameter_group_name   = "default.postgres17"  # hoặc "default.mysql8.0"
+```
+
+---
 
 ## Outputs
 
 ```terraform
-# Access outputs:
+module.rds.db_endpoint          # hostname:port
+module.rds.db_hostname          # hostname only
+module.rds.db_port              # port
+module.rds.db_name              # database name
+module.rds.password_secret_arn  # Secrets Manager ARN
+module.rds.security_group_id    # SG ID
+module.rds.replica_endpoint     # Replica endpoint (if enabled)
+```
+
+---
+
+## Get Password
+
+```bash
+aws secretsmanager get-secret-value \
+  --secret-id "<password_secret_arn>" \
+  --query 'SecretString' --output text
 ```

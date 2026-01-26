@@ -5,7 +5,22 @@ variable "allowed_security_groups" {
   type        = list(string)
   default     = []
 }
-variable "subnet_ids" {}
+variable "subnet_ids" {
+  type        = list(string)
+  description = "List of subnet IDs for the ElastiCache subnet group (required if elasticache_subnet_group_name is not provided)"
+  default     = []
+}
+
+variable "elasticache_subnet_group_name" {
+  type        = string
+  description = "Name of an existing ElastiCache subnet group (from network module). If provided, subnet_ids is not required."
+  default     = null
+
+  validation {
+    condition     = var.elasticache_subnet_group_name != null || length(var.subnet_ids) > 0
+    error_message = "Either elasticache_subnet_group_name or subnet_ids must be provided."
+  }
+}
 
 variable "number_cache_clusters" {
   type = number

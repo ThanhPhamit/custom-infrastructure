@@ -25,7 +25,17 @@ resource "aws_security_group_rule" "allow_from_security_groups" {
   source_security_group_id = var.allowed_security_groups[count.index]
 }
 
+#--------------------------------------------------------------
+# ElastiCache Subnet Group
+#--------------------------------------------------------------
+locals {
+  # Use provided subnet group name or create one
+  elasticache_subnet_group_name = var.elasticache_subnet_group_name != null ? var.elasticache_subnet_group_name : aws_elasticache_subnet_group.elasticache_subnet_group[0].name
+}
+
 resource "aws_elasticache_subnet_group" "elasticache_subnet_group" {
+  count = var.elasticache_subnet_group_name == null ? 1 : 0
+
   name        = "${var.app_name}-elasticache-subnet"
   description = "Redis Subnet Group"
 
@@ -39,6 +49,9 @@ resource "aws_elasticache_subnet_group" "elasticache_subnet_group" {
   )
 }
 
+#--------------------------------------------------------------
+# ElastiCache Replication Group
+#--------------------------------------------------------------
 resource "aws_elasticache_replication_group" "redis" {
   replication_group_id = "${var.app_name}-redis"
   description          = var.app_name
@@ -48,7 +61,7 @@ resource "aws_elasticache_replication_group" "redis" {
   num_cache_clusters   = var.number_cache_clusters
   parameter_group_name = var.parameter_group_name
   port                 = var.port
-  subnet_group_name    = aws_elasticache_subnet_group.elasticache_subnet_group.name
+  subnet_group_name    = local.elasticache_subnet_group_name
 
   security_group_ids = [aws_security_group.security_group.id]
 
