@@ -314,18 +314,6 @@ resource "aws_security_group_rule" "ecs_allow_alb" {
   description              = "Allow inbound traffic from ALB to ECS tasks"
 }
 
-# Add security group rule to allow ECS to access ElastiCache
-resource "aws_security_group_rule" "elasticache_allow_ecs" {
-  type                     = "ingress"
-  from_port                = var.elasticache_primary_endpoint_port
-  to_port                  = var.elasticache_primary_endpoint_port
-  protocol                 = "tcp"
-  security_group_id        = var.elasticache_security_group_id
-  source_security_group_id = var.ecs_security_group_id
-  description              = "Allow access from ECS tasks to ElastiCache"
-}
-
-
 resource "aws_ecs_service" "ecs_service" {
   name                   = "${var.app_name}-server-service"
   launch_type            = "FARGATE"

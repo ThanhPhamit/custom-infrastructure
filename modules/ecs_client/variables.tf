@@ -69,13 +69,4 @@ variable "tags" {
   default     = {}
 }
 
-variable "elasticache_security_group_id" {
-  type        = string
-  description = "Security group ID for the ElastiCache cluster"
-}
-variable "elasticache_primary_endpoint_port" {
-  type        = number
-  description = "Primary endpoint port for the ElastiCache cluster"
-}
-
 # Enviroment variables

@@ -96,6 +96,12 @@ variable "apply_immediately" {
   default = true
 }
 
+variable "enable_cache_nodes_lookup" {
+  type        = bool
+  description = "Enable lookup of cache node details for CloudWatch alarms. Set to true after initial cluster creation."
+  default     = false
+}
+
 variable "tags" {
   type        = map(string)
   description = "Tags to apply to resources"

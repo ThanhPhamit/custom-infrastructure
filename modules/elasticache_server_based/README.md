@@ -96,6 +96,53 @@ module "elasticache" {
 }
 ```
 
+### Example 4: With CloudWatch Alarm Support
+
+The `enable_cache_nodes_lookup` variable controls whether to query cache node details for CloudWatch alarms.
+
+**Initial deployment** (cluster doesn't exist yet):
+
+```terraform
+module "elasticache" {
+  source = "../../modules/elasticache_server_based"
+
+  app_name = "${var.environment}-${var.app_name}"
+  vpc_id   = module.vpc.vpc_id
+
+  elasticache_subnet_group_name = module.vpc.elasticache_subnet_group_name
+
+  engine                = "valkey"
+  engine_version        = "8.0"
+  node_type             = "cache.t3.micro"
+  parameter_group_name  = "default.valkey8"
+  number_cache_clusters = 1
+
+  # First deployment: disable lookup (cluster doesn't exist yet)
+  enable_cache_nodes_lookup = false
+
+  tags = local.tags
+}
+```
+
+**After cluster is created** (enable for CloudWatch alarms):
+
+```terraform
+module "elasticache" {
+  # ... same config ...
+
+  # Enable after cluster exists to get cache_nodes output
+  enable_cache_nodes_lookup = true
+}
+
+# Now you can use cache_nodes output for CloudWatch alarms
+module "cloudwatch_alarm_elasticache" {
+  source = "../../modules/cloudwatch_alarm_elasticache_server_based"
+
+  cache_nodes = module.elasticache.cache_nodes
+  # ...
+}
+```
+
 ## Engine Options
 
 | Engine | Version | Description                |
@@ -164,6 +211,7 @@ r = redis.Redis(
 | maintenance_window            | Maintenance window (UTC)             | `string`       | `"Sat:18:00-Sat:19:00"` |    no    |
 | transit_encryption_enabled    | Enable in-transit encryption         | `bool`         | `false`                 |    no    |
 | at_rest_encryption_enabled    | Enable at-rest encryption            | `bool`         | `false`                 |    no    |
+| enable_cache_nodes_lookup     | Enable cache nodes lookup for alarms | `bool`         | `false`                 |    no    |
 | apply_immediately             | Apply changes immediately            | `bool`         | `true`                  |    no    |
 | allowed_security_groups       | Additional security groups           | `list(string)` | `[]`                    |    no    |
 | tags                          | Tags to apply to resources           | `map(string)`  | `{}`                    |    no    |
@@ -172,15 +220,43 @@ r = redis.Redis(
 
 ## Outputs
 
-| Name                     | Description                     |
-| ------------------------ | ------------------------------- |
-| security_group_id        | Security group ID               |
-| primary_endpoint_address | Primary endpoint address        |
-| reader_endpoint_address  | Reader endpoint address         |
-| primary_endpoint_port    | Primary endpoint port           |
-| replication_group_id     | Replication group ID            |
-| cluster_id               | Cluster ID                      |
-| cache_nodes              | Map of cache nodes with details |
+| Name                     | Description                                                                   |
+| ------------------------ | ----------------------------------------------------------------------------- |
+| security_group_id        | Security group ID                                                             |
+| primary_endpoint_address | Primary endpoint address                                                      |
+| reader_endpoint_address  | Reader endpoint address                                                       |
+| primary_endpoint_port    | Primary endpoint port                                                         |
+| replication_group_id     | Replication group ID                                                          |
+| cluster_id               | Cluster ID                                                                    |
+| cache_nodes              | Map of cache nodes with details (requires `enable_cache_nodes_lookup = true`) |
+
+## Deployment Workflow
+
+### Two-Step Deployment for CloudWatch Alarms
+
+Since `cache_nodes` output requires the cluster to exist first, follow this workflow:
+
+1. **First deployment** - Create the cluster:
+
+   ```hcl
+   enable_cache_nodes_lookup = false  # default
+   ```
+
+   ```bash
+   terraform apply
+   ```
+
+2. **Second deployment** - Enable cache nodes lookup:
+
+   ```hcl
+   enable_cache_nodes_lookup = true
+   ```
+
+   ```bash
+   terraform apply
+   ```
+
+3. **Now** you can add CloudWatch alarms using `module.elasticache.cache_nodes`
 
 ## Requirements
 

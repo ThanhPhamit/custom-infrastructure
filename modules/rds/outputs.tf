@@ -83,8 +83,18 @@ output "security_group_id" {
 }
 
 output "db_subnet_group_name" {
-  description = "Name of the DB subnet group"
-  value       = aws_db_subnet_group.db.name
+  description = "Name of the DB subnet group (created internally or provided externally)"
+  value       = local.db_subnet_group_name
+}
+
+output "db_subnet_group_id" {
+  description = "ID of the DB subnet group (only when created internally, null when provided externally)"
+  value       = var.db_subnet_group_name == null ? aws_db_subnet_group.db[0].id : null
+}
+
+output "db_subnet_group_arn" {
+  description = "ARN of the DB subnet group (only when created internally, null when provided externally)"
+  value       = var.db_subnet_group_name == null ? aws_db_subnet_group.db[0].arn : null
 }
 
 #--------------------------------------------------------------

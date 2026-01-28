@@ -5,14 +5,15 @@ locals {
 }
 
 # Get cluster details for each generated cluster ID
+# Only query when enable_cache_nodes_lookup = true (after cluster is created)
 data "aws_elasticache_cluster" "redis_clusters" {
-  for_each   = toset(local.cluster_ids)
+  for_each   = var.enable_cache_nodes_lookup ? toset(local.cluster_ids) : toset([])
   cluster_id = each.value
 }
 
 # Create a flattened map of all cache nodes
 locals {
-  cache_nodes = merge([
+  cache_nodes = var.enable_cache_nodes_lookup ? merge([
     for cluster_id, cluster_data in data.aws_elasticache_cluster.redis_clusters : {
       for node in cluster_data.cache_nodes :
       "${cluster_id}-${node.id}" => {
@@ -23,5 +24,5 @@ locals {
         port       = node.port
       }
     }
-  ]...)
+  ]...) : {}
 }
