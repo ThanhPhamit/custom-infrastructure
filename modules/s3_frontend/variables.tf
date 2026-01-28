@@ -13,9 +13,15 @@ variable "route_53_zone_id" {
   type        = string
 }
 
-variable "domain" {
-  description = "Custom domain name for the frontend (e.g., www.example.com)"
-  type        = string
+variable "domains" {
+  description = "List of custom domain names for the frontend (e.g., ['patient.example.com', 'clinic.example.com', 'admin.example.com']). All domains will use the same S3 bucket and CloudFront distribution."
+  type        = list(string)
+}
+
+variable "enable_spa_router" {
+  description = "Enable SPA router CloudFront Function. This serves index.html for all routes without file extension, allowing client-side routing to work correctly. Recommended for Vue/React/Angular apps with subdomain-based role detection."
+  type        = bool
+  default     = true
 }
 
 variable "create_cloudfront_function" {

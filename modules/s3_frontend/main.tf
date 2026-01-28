@@ -55,7 +55,7 @@ resource "aws_secretsmanager_secret_version" "basic_auth_version" {
 }
 
 resource "aws_cloudfront_function" "basic_auth" {
-  count   = var.create_cloudfront_function ? 1 : 0
+  count   = var.create_cloudfront_function && !var.enable_spa_router ? 1 : 0
   name    = "${var.app_name}-basic-auth"
   runtime = "cloudfront-js-2.0"
   comment = "Basic Auth"
@@ -69,6 +69,27 @@ resource "aws_cloudfront_function" "basic_auth" {
   depends_on = [aws_secretsmanager_secret_version.basic_auth_version]
 }
 
+# SPA Router CloudFront Function with optional Basic Auth
+# Serves index.html for all routes without file extension (for client-side routing)
+# Supports subdomain-based role detection (patient.*, clinic.*, admin.*)
+resource "aws_cloudfront_function" "spa_router" {
+  count   = var.enable_spa_router ? 1 : 0
+  name    = "${var.app_name}-spa-router"
+  runtime = "cloudfront-js-2.0"
+  comment = "SPA Router for subdomain-based Vue/React apps"
+  publish = true
+
+  # Use different JS file based on whether basic auth is enabled
+  code = var.create_cloudfront_function ? templatefile(
+    "${path.module}/spa_router_with_auth.js",
+    {
+      authString = base64encode("${jsondecode(aws_secretsmanager_secret_version.basic_auth_version[0].secret_string).username}:${jsondecode(aws_secretsmanager_secret_version.basic_auth_version[0].secret_string).password}")
+    }
+  ) : file("${path.module}/spa_router.js")
+
+  depends_on = [aws_secretsmanager_secret_version.basic_auth_version]
+}
+
 resource "aws_cloudfront_distribution" "frontend" {
   origin {
     domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
@@ -76,7 +97,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     origin_access_control_id = aws_cloudfront_origin_access_control.main.id
   }
 
-  aliases     = [var.domain]
+  aliases     = var.domains
   enabled     = true
   price_class = var.price_class
 
@@ -123,11 +144,21 @@ resource "aws_cloudfront_distribution" "frontend" {
     default_ttl            = 0
     max_ttl                = 0
 
+    # SPA Router function (handles both SPA routing and optional basic auth)
     dynamic "function_association" {
-      for_each = var.create_cloudfront_function ? [aws_cloudfront_function.basic_auth] : []
+      for_each = var.enable_spa_router ? [aws_cloudfront_function.spa_router[0]] : []
       content {
         event_type   = "viewer-request"
-        function_arn = function_association.value[0].arn
+        function_arn = function_association.value.arn
+      }
+    }
+
+    # Basic auth only (when SPA router is disabled)
+    dynamic "function_association" {
+      for_each = var.create_cloudfront_function && !var.enable_spa_router ? [aws_cloudfront_function.basic_auth[0]] : []
+      content {
+        event_type   = "viewer-request"
+        function_arn = function_association.value.arn
       }
     }
   }
@@ -180,9 +211,11 @@ resource "aws_s3_bucket_policy" "this" {
   policy = data.aws_iam_policy_document.frontend.json
 }
 
-
+# Route53 DNS records for all domains
 resource "aws_route53_record" "app_domain_dns_record" {
-  name    = var.domain
+  for_each = toset(var.domains)
+
+  name    = each.value
   type    = "A"
   zone_id = var.route_53_zone_id
 

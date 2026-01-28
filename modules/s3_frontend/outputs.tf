@@ -33,9 +33,14 @@ output "cloudfront_domain_name" {
   value       = aws_cloudfront_distribution.frontend.domain_name
 }
 
-output "website_url" {
-  description = "Website URL (custom domain)"
-  value       = "https://${var.domain}"
+output "website_urls" {
+  description = "Website URLs (custom domains)"
+  value       = [for domain in var.domains : "https://${domain}"]
+}
+
+output "domains" {
+  description = "List of configured domains"
+  value       = var.domains
 }
 
 output "basic_auth_secret_arn" {

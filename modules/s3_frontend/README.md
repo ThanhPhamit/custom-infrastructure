@@ -7,61 +7,96 @@ Terraform module which creates S3 bucket with CloudFront distribution for hostin
 This module supports creating:
 
 - **S3 Bucket** - Private bucket with versioning enabled
-- **CloudFront Distribution** - Global CDN with HTTPS
+- **CloudFront Distribution** - Global CDN with HTTPS, supports multiple subdomains
 - **Origin Access Control (OAC)** - Secure S3 access (recommended over OAI)
+- **SPA Router Function** - CloudFront Function for subdomain-based Vue/React apps
 - **Basic Authentication** - Optional CloudFront Function for staging protection
 - **SPA Support** - Client-side routing support (403/404 → index.html)
-- **Route53 DNS** - Automatic DNS record creation
+- **Route53 DNS** - Automatic DNS record creation for all domains
 - **Secrets Manager** - Secure basic auth credential storage
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Route53 DNS                               │
+│  patient.example.com  ──┐                                   │
+│  clinic.example.com   ──┼──→ CloudFront Distribution        │
+│  admin.example.com    ──┘                                   │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────────┐
+│           CloudFront Distribution (1 distribution)          │
+│  - aliases: [patient.*, clinic.*, admin.*]                  │
+│  - CloudFront Function: SPA Router + Basic Auth             │
+│  - All routes → index.html (client-side routing)            │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────────┐
+│              S3 Bucket (1 bucket, same content)              │
+│  /index.html ← Vue/React app detects subdomain client-side  │
+│  /assets/*                                                   │
+└──────────────────────────────────────────────────────────────┘
+```
 
 ## Usage
 
-### Example 1: Production (No Basic Auth)
+### Example 1: Multi-Subdomain SPA (Vue/React with role detection)
+
+```terraform
+module "frontend" {
+  source = "../../modules/s3_frontend"
+
+  app_name = "${var.environment}-${var.app_name}"
+
+  # Multiple subdomains - all served from same S3 bucket
+  domains = [
+    "patient.example.com",  # Patient portal
+    "clinic.example.com",   # Clinic dashboard
+    "admin.example.com"     # Admin panel
+  ]
+
+  acm_certificate_arn = module.acm_virginia.certificate_arn  # Must be us-east-1
+  route_53_zone_id    = data.aws_route53_zone.main.zone_id
+
+  # Enable SPA router for subdomain-based apps
+  enable_spa_router = true
+
+  # Enable basic auth for staging
+  create_cloudfront_function = true
+  basic_auth_password        = var.staging_password
+
+  spa_mode            = true
+  default_root_object = "index.html"
+  price_class         = "PriceClass_200"
+
+  tags = local.tags
+}
+```
+
+### Example 2: Production (No Basic Auth)
 
 ```terraform
 module "frontend" {
   source = "../../modules/s3_frontend"
 
   app_name            = "${var.environment}-${var.app_name}"
-  domain              = "www.example.com"
-  acm_certificate_arn = module.acm_virginia.certificate_arn  # Must be us-east-1
+  domains             = ["www.example.com"]
+  acm_certificate_arn = module.acm_virginia.certificate_arn
   route_53_zone_id    = data.aws_route53_zone.main.zone_id
 
   # Disable basic auth for production
   create_cloudfront_function = false
+  enable_spa_router          = true
 
-  # SPA mode for React/Vue/Angular
   spa_mode            = true
   default_root_object = "index.html"
-
-  # Cost optimization for Asia
-  price_class = "PriceClass_200"
+  price_class         = "PriceClass_200"
 
   tags = {
     Environment = "production"
     Terraform   = "true"
   }
-}
-```
-
-### Example 2: Staging with Basic Auth
-
-```terraform
-module "frontend_staging" {
-  source = "../../modules/s3_frontend"
-
-  app_name            = "${var.environment}-${var.app_name}"
-  domain              = "staging.example.com"
-  acm_certificate_arn = module.acm_virginia.certificate_arn
-  route_53_zone_id    = data.aws_route53_zone.main.zone_id
-
-  # Enable basic auth for staging
-  create_cloudfront_function = true
-  basic_auth_password        = var.staging_password  # Username will be app_name
-
-  spa_mode = true
-
-  tags = local.tags
 }
 ```
 
@@ -72,11 +107,12 @@ module "docs_site" {
   source = "../../modules/s3_frontend"
 
   app_name            = "${var.environment}-docs"
-  domain              = "docs.example.com"
+  domains             = ["docs.example.com"]
   acm_certificate_arn = module.acm_virginia.certificate_arn
   route_53_zone_id    = data.aws_route53_zone.main.zone_id
 
   create_cloudfront_function = false
+  enable_spa_router          = false
 
   # Disable SPA mode for traditional static sites
   spa_mode            = false
@@ -136,18 +172,19 @@ For Japan-focused applications, use `PriceClass_200`.
 
 ## Inputs
 
-| Name                       | Description                                   | Type          | Default            | Required |
-| -------------------------- | --------------------------------------------- | ------------- | ------------------ | :------: |
-| app_name                   | Application name for resource naming          | `string`      | n/a                |   yes    |
-| domain                     | Custom domain name (e.g., www.example.com)    | `string`      | n/a                |   yes    |
-| acm_certificate_arn        | ACM certificate ARN (must be in us-east-1)    | `string`      | n/a                |   yes    |
-| route_53_zone_id           | Route53 hosted zone ID                        | `string`      | n/a                |   yes    |
-| create_cloudfront_function | Enable basic auth CloudFront function         | `bool`        | `true`             |    no    |
-| basic_auth_password        | Password for basic auth (username = app_name) | `string`      | `""`               |    no    |
-| spa_mode                   | Enable SPA mode (403/404 → index.html)        | `bool`        | `true`             |    no    |
-| default_root_object        | Default root object (index file)              | `string`      | `"index.html"`     |    no    |
-| price_class                | CloudFront price class                        | `string`      | `"PriceClass_All"` |    no    |
-| tags                       | Tags to apply to resources                    | `map(string)` | `{}`               |    no    |
+| Name                       | Description                                     | Type           | Default            | Required |
+| -------------------------- | ----------------------------------------------- | -------------- | ------------------ | :------: |
+| app_name                   | Application name for resource naming            | `string`       | n/a                |   yes    |
+| domains                    | List of custom domain names (supports multiple) | `list(string)` | n/a                |   yes    |
+| acm_certificate_arn        | ACM certificate ARN (must be in us-east-1)      | `string`       | n/a                |   yes    |
+| route_53_zone_id           | Route53 hosted zone ID                          | `string`       | n/a                |   yes    |
+| enable_spa_router          | Enable SPA router CloudFront Function           | `bool`         | `true`             |    no    |
+| create_cloudfront_function | Enable basic auth in CloudFront function        | `bool`         | `true`             |    no    |
+| basic_auth_password        | Password for basic auth (username = app_name)   | `string`       | `""`               |    no    |
+| spa_mode                   | Enable SPA mode (403/404 → index.html)          | `bool`         | `true`             |    no    |
+| default_root_object        | Default root object (index file)                | `string`       | `"index.html"`     |    no    |
+| price_class                | CloudFront price class                          | `string`       | `"PriceClass_All"` |    no    |
+| tags                       | Tags to apply to resources                      | `map(string)`  | `{}`               |    no    |
 
 ## Outputs
 
@@ -160,7 +197,8 @@ For Japan-focused applications, use `PriceClass_200`.
 | cloudfront_distribution_id  | CloudFront distribution ID (for cache invalidation) |
 | cloudfront_distribution_arn | CloudFront distribution ARN                         |
 | cloudfront_domain_name      | CloudFront distribution domain name                 |
-| website_url                 | Website URL (https://your-domain.com)               |
+| website_urls                | List of website URLs                                |
+| domains                     | List of configured domains                          |
 | basic_auth_secret_arn       | Secrets Manager ARN for basic auth credentials      |
 
 ## Basic Auth Credentials
