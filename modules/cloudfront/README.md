@@ -203,6 +203,52 @@ module "cloudfront" {
 | cloudfront_function_arn     | ARN of the CloudFront Function             |
 | access_urls                 | Map of available access URLs               |
 
+## Important: Forwarded Headers Configuration
+
+When using CloudFront with an API backend, you **must** configure `forwarded_headers` properly to ensure your application works correctly.
+
+### For API Servers (NestJS, Express, etc.)
+
+```terraform
+forwarded_headers = [
+  "Host",                           # Server knows which domain is being requested
+  "Authorization",                  # JWT/Bearer token authentication (CRITICAL!)
+  "CloudFront-Forwarded-Proto",     # Server knows HTTPS or HTTP
+  "CloudFront-Is-Desktop-Viewer",   # Device detection
+  "CloudFront-Is-Mobile-Viewer",    # Device detection
+  "CloudFront-Is-Tablet-Viewer",    # Device detection
+  "Origin",                         # CORS - which domain is making the request
+  "Access-Control-Request-Headers", # CORS preflight requests
+  "Access-Control-Request-Method",  # CORS preflight requests
+]
+```
+
+### For Web Applications (Vue, React, Angular SSR)
+
+```terraform
+forwarded_headers = [
+  "Host",
+  "CloudFront-Forwarded-Proto",
+  "CloudFront-Is-Desktop-Viewer",
+  "CloudFront-Is-Mobile-Viewer",
+  "CloudFront-Is-Tablet-Viewer",
+]
+```
+
+### Header Reference
+
+| Header                       | Purpose                                 | When to use                    |
+| ---------------------------- | --------------------------------------- | ------------------------------ |
+| `Host`                       | Server knows the domain being requested | Always                         |
+| `Authorization`              | JWT/Bearer token authentication         | **API servers with auth**      |
+| `CloudFront-Forwarded-Proto` | Server knows if HTTPS or HTTP           | Redirect logic, secure cookies |
+| `CloudFront-Is-*-Viewer`     | Device type detection                   | Responsive logic on server     |
+| `Origin`                     | CORS - origin domain of request         | API servers with CORS          |
+| `Access-Control-Request-*`   | CORS preflight requests                 | API servers with CORS          |
+| `x-strapi-signature`         | Strapi webhook verification             | Strapi CMS only                |
+
+> ⚠️ **Warning:** Without `Authorization` header forwarding, your API authentication (JWT tokens) will NOT work through CloudFront!
+
 ## Requirements
 
 | Name      | Version  |
