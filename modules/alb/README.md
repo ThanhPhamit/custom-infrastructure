@@ -84,8 +84,8 @@ module "alb_with_cloudfront" {
   acm_certificate_arn = module.acm.certificate_arn
 
   # Skip Route53 record - CloudFront will handle DNS
+  # route_53_zone_id and alb_domain are optional when create_route53_record = false
   create_route53_record = false
-  route_53_zone_id      = data.aws_route53_zone.public.id
 
   tags = {
     Environment = "production"
@@ -120,19 +120,21 @@ module "alb_with_cloudfront" {
 
 ## Inputs
 
-| Name                         | Description                                | Type           | Default | Required |
-| ---------------------------- | ------------------------------------------ | -------------- | ------- | :------: |
-| app_name                     | Name of the application                    | `string`       | n/a     |   yes    |
-| vpc_id                       | ID of the VPC where ALB will be created    | `string`       | n/a     |   yes    |
-| subnet_ids                   | List of subnet IDs for ALB deployment      | `list(string)` | n/a     |   yes    |
-| acm_certificate_arn          | ARN of ACM certificate for HTTPS listeners | `string`       | n/a     |   yes    |
-| route_53_zone_id             | Route 53 hosted zone ID for DNS records    | `string`       | n/a     |   yes    |
-| restricted_source_ips        | List of CIDR blocks allowed to access ALB  | `list(string)` | n/a     |   yes    |
-| alb_domain                   | Domain name for the ALB                    | `string`       | `null`  |    no    |
-| alb_internal                 | Whether the ALB is internal                | `bool`         | `false` |    no    |
-| allow_cloudfront_prefix_list | Allow traffic from CloudFront prefix list  | `bool`         | `false` |    no    |
-| create_route53_record        | Whether to create Route 53 DNS record      | `bool`         | `true`  |    no    |
-| tags                         | Tags to apply to resources                 | `map(string)`  | `{}`    |    no    |
+| Name                         | Description                                | Type           | Default | Required                                |
+| ---------------------------- | ------------------------------------------ | -------------- | ------- | --------------------------------------- |
+| app_name                     | Name of the application                    | `string`       | n/a     | yes                                     |
+| vpc_id                       | ID of the VPC where ALB will be created    | `string`       | n/a     | yes                                     |
+| subnet_ids                   | List of subnet IDs for ALB deployment      | `list(string)` | n/a     | yes                                     |
+| acm_certificate_arn          | ARN of ACM certificate for HTTPS listeners | `string`       | n/a     | yes                                     |
+| route_53_zone_id             | Route 53 hosted zone ID for DNS records    | `string`       | `null`  | yes (when `create_route53_record=true`) |
+| restricted_source_ips        | List of CIDR blocks allowed to access ALB  | `list(string)` | n/a     | yes                                     |
+| alb_domain                   | Domain name for the ALB                    | `string`       | `null`  | yes (when `create_route53_record=true`) |
+| alb_internal                 | Whether the ALB is internal                | `bool`         | `false` | no                                      |
+| allow_cloudfront_prefix_list | Allow traffic from CloudFront prefix list  | `bool`         | `false` | no                                      |
+| create_route53_record        | Whether to create Route 53 DNS record      | `bool`         | `true`  | no                                      |
+| tags                         | Tags to apply to resources                 | `map(string)`  | `{}`    | no                                      |
+
+> **Note:** When `create_route53_record = false` (e.g., using CloudFront), both `route_53_zone_id` and `alb_domain` become optional and can be omitted.
 
 ## Outputs
 

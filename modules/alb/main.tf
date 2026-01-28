@@ -164,4 +164,11 @@ resource "aws_route53_record" "app_domain_dns_record" {
     name                   = aws_lb.alb.dns_name
     zone_id                = aws_lb.alb.zone_id
   }
+
+  lifecycle {
+    precondition {
+      condition     = var.route_53_zone_id != null && var.alb_domain != null
+      error_message = "When create_route53_record is true, both route_53_zone_id and alb_domain must be provided."
+    }
+  }
 }

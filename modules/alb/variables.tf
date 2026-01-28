@@ -23,7 +23,8 @@ variable "acm_certificate_arn" {
 }
 variable "route_53_zone_id" {
   type        = string
-  description = "Route 53 hosted zone ID for creating DNS records"
+  description = "Route 53 hosted zone ID for creating DNS records. Required when create_route53_record is true."
+  default     = null
 }
 variable "vpc_id" {
   type        = string
