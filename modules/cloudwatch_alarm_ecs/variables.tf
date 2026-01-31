@@ -5,13 +5,13 @@ variable "aws_region" {}
 variable "cw_alarm_ecs_scale_out_period" {
   description = "Period for ECS scale out alarms (seconds)"
   type        = number
-  default     = 30
+  default     = 60
 }
 
 variable "cw_alarm_ecs_scale_in_period" {
   description = "Period for ECS scale in alarms (seconds)"
   type        = number
-  default     = 60
+  default     = 120 # Slower scale-in to prevent flapping
 }
 
 variable "cw_alarm_ecs_alert_period" {

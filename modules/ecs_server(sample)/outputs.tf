@@ -48,7 +48,7 @@ output "ecs_cloudwatch_log_group_name" {
 
 output "ecs_security_group_id" {
   description = "The ID of the ECS security group"
-  value       = aws_security_group.ecs_security_group.id
+  value       = var.ecs_security_group_id
 }
 
 output "lb_target_group_blue_arn" {
@@ -65,4 +65,51 @@ output "lb_listener_tcp_prod_arn" {
 
 output "lb_listener_tcp_test_arn" {
   value = var.load_balancer_type == "nlb" ? aws_lb_listener.nlb_test[0].arn : var.http_test_listener_arn
+}
+
+# =============================================================================
+# Auto-generated Secrets ARNs (4 secrets)
+# =============================================================================
+
+output "admin_secret_key_arn" {
+  description = "ARN of the admin secret key in Secrets Manager"
+  value       = aws_secretsmanager_secret.admin_secret_key.arn
+}
+
+output "jwt_secret_key_arn" {
+  description = "ARN of the JWT secret key in Secrets Manager"
+  value       = aws_secretsmanager_secret.jwt_secret_key.arn
+}
+
+output "jwt_refresh_secret_key_arn" {
+  description = "ARN of the JWT refresh secret key in Secrets Manager"
+  value       = aws_secretsmanager_secret.jwt_refresh_secret_key.arn
+}
+
+output "crypto_secret_key_arn" {
+  description = "ARN of the crypto secret key in Secrets Manager"
+  value       = aws_secretsmanager_secret.crypto_secret_key.arn
+}
+
+# =============================================================================
+# External Secrets ARNs (4 secrets - stored by this module)
+# =============================================================================
+output "secret_key_arn" {
+  description = "ARN of the application secret key in Secrets Manager"
+  value       = aws_secretsmanager_secret.secret_key.arn
+}
+
+output "gmo_site_pass_secret_arn" {
+  description = "ARN of the GMO site pass secret in Secrets Manager"
+  value       = aws_secretsmanager_secret.gmo_site_pass.arn
+}
+
+output "gmo_shop_pass_secret_arn" {
+  description = "ARN of the GMO shop pass secret in Secrets Manager"
+  value       = aws_secretsmanager_secret.gmo_shop_pass.arn
+}
+
+output "twilio_auth_token_secret_arn" {
+  description = "ARN of the Twilio auth token secret in Secrets Manager"
+  value       = aws_secretsmanager_secret.twilio_auth_token.arn
 }

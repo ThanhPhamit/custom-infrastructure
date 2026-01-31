@@ -23,14 +23,16 @@ output "elastic_ip" {
   value       = var.create_eip ? aws_eip.bastion[0].public_ip : null
 }
 
-output "ssh_command" {
-  description = "SSH command to connect to the bastion host"
-  value       = "ssh -i /path/to/your-key.pem ec2-user@${var.create_eip ? aws_eip.bastion[0].public_ip : aws_instance.bastion.public_ip}"
-}
-
-output "mysql_connection_example" {
-  description = "Example MySQL connection command from bastion host"
-  value       = "mysql -h <rds-endpoint> -u admin -p focuson"
+output "ssh_config" {
+  description = "SSH config entry for the bastion host (add to ~/.ssh/config)"
+  value       = <<-EOT
+# ${var.app_name} Bastion Host
+Host ${var.app_name}-bastion
+    HostName ${var.create_eip ? aws_eip.bastion[0].public_ip : aws_instance.bastion.public_ip}
+    User ec2-user
+    IdentitiesOnly yes
+    IdentityFile ~/.ssh/${var.key_pair_name}.pem
+EOT
 }
 
 output "scheduler_enabled" {

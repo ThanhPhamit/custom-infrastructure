@@ -115,13 +115,13 @@ resource "aws_lb_target_group" "target_group_blue" {
 
   health_check {
     port                = var.container_port
-    timeout             = var.load_balancer_type == "nlb" ? 6 : 15
-    protocol            = var.load_balancer_type == "nlb" ? "HTTP" : "HTTP" # Use HTTP health check even for NLB
-    path                = var.load_balancer_type == "nlb" ? var.app_health_check_path : var.app_health_check_path
-    matcher             = var.load_balancer_type == "nlb" ? "200" : null
-    healthy_threshold   = var.load_balancer_type == "nlb" ? 3 : 2
-    unhealthy_threshold = var.load_balancer_type == "nlb" ? 3 : 2
-    interval            = var.load_balancer_type == "nlb" ? 30 : 30
+    timeout             = var.load_balancer_type == "nlb" ? 6 : 10
+    protocol            = "HTTP"
+    path                = var.app_health_check_path
+    matcher             = "200-299"
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+    interval            = 30
   }
 
   lifecycle {
@@ -145,13 +145,13 @@ resource "aws_lb_target_group" "target_group_green" {
 
   health_check {
     port                = var.container_port
-    timeout             = var.load_balancer_type == "nlb" ? 6 : 15
-    protocol            = var.load_balancer_type == "nlb" ? "HTTP" : "HTTP" # Use HTTP health check even for NLB
-    path                = var.load_balancer_type == "nlb" ? var.app_health_check_path : var.app_health_check_path
-    matcher             = var.load_balancer_type == "nlb" ? "200" : null
-    healthy_threshold   = var.load_balancer_type == "nlb" ? 3 : 2
-    unhealthy_threshold = var.load_balancer_type == "nlb" ? 3 : 2
-    interval            = var.load_balancer_type == "nlb" ? 30 : 30
+    timeout             = var.load_balancer_type == "nlb" ? 6 : 10
+    protocol            = "HTTP"
+    path                = var.app_health_check_path
+    matcher             = "200-299"
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+    interval            = 30
   }
 
   lifecycle {

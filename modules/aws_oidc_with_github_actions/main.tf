@@ -65,10 +65,15 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     resources = ["*"]
   }
 
-  # statement {
-  #   actions   = ["iam:PassRole"]
-  #   resources = var.passrole_target_role_arns
-  # }
+  statement {
+    actions   = ["iam:PassRole"]
+    resources = var.passrole_target_role_arns
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["ecs-tasks.amazonaws.com"]
+    }
+  }
 }
 
 resource "aws_iam_policy" "github_actions_policy" {

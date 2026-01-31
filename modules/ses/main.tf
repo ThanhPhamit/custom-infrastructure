@@ -112,6 +112,26 @@ resource "aws_secretsmanager_secret_version" "ses_smtp_password" {
   secret_string = aws_iam_access_key.ses_smtp_access_key[0].ses_smtp_password_v4
 }
 
+# Store SMTP username in AWS Secrets Manager
+resource "aws_secretsmanager_secret" "ses_smtp_username" {
+  count       = var.create_smtp_user ? 1 : 0
+  name        = "${var.app_name}-ses-smtp-username-${substr(random_uuid.ses_smtp_password_uuid[0].result, 0, 2)}"
+  description = "SES SMTP username for ${var.app_name}"
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.app_name}-ses-smtp-username-${substr(random_uuid.ses_smtp_password_uuid[0].result, 0, 2)}"
+    }
+  )
+}
+
+resource "aws_secretsmanager_secret_version" "ses_smtp_username" {
+  count         = var.create_smtp_user ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.ses_smtp_username[0].id
+  secret_string = aws_iam_access_key.ses_smtp_access_key[0].id
+}
+
 # SES Email Templates
 resource "aws_ses_template" "email_templates" {
   count   = length(var.email_templates)

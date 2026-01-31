@@ -23,6 +23,11 @@ output "smtp_password_secret_arn" {
   value       = length(aws_secretsmanager_secret.ses_smtp_password) > 0 ? aws_secretsmanager_secret.ses_smtp_password[0].arn : null
 }
 
+output "smtp_username_secret_arn" {
+  description = "ARN of the secret containing SMTP username"
+  value       = length(aws_secretsmanager_secret.ses_smtp_username) > 0 ? aws_secretsmanager_secret.ses_smtp_username[0].arn : null
+}
+
 output "domain_identity_arn" {
   description = "ARN of the SES domain identity"
   value       = length(aws_ses_domain_identity.domain) > 0 ? aws_ses_domain_identity.domain[0].arn : null

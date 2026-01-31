@@ -46,7 +46,7 @@ data "aws_iam_policy_document" "ecs_task_execution_policy_document" {
     ]
   }
 
-  # Secrets Manager permissions for your app secrets
+  # Secrets Manager permissions for all secrets (created by this module)
   statement {
     effect = "Allow"
     actions = [
@@ -54,15 +54,9 @@ data "aws_iam_policy_document" "ecs_task_execution_policy_document" {
       "secretsmanager:DescribeSecret"
     ]
     resources = [
-      aws_secretsmanager_secret.ecs_db_host.arn,
-      aws_secretsmanager_secret.ecs_db_user.arn,
-      aws_secretsmanager_secret.ecs_db_password.arn,
-      aws_secretsmanager_secret.ecs_jwt_secret.arn,
-      aws_secretsmanager_secret.ecs_session_secret.arn,
-      aws_secretsmanager_secret.ecs_crypto_key_secret.arn,
-      aws_secretsmanager_secret.ecs_crypto_iv_secret.arn,
-      aws_secretsmanager_secret.ecs_crypto_salt_secret.arn,
-      aws_secretsmanager_secret.ecs_refresh_token_secret.arn
+      "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.user.account_id}:secret:${var.app_name}-ecs-*",
+      "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.user.account_id}:secret:${var.app_name}-ses-*",
+      "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.user.account_id}:secret:${var.app_name}-rds-*"
     ]
   }
 }

@@ -36,6 +36,15 @@ output "db_name" {
   value       = aws_db_instance.primary.db_name
 }
 
+output "db_schema" {
+  description = <<-EOT
+    Database schema name.
+    Value is "public" - PostgreSQL's default schema automatically created in every new database.
+    Reference: https://www.postgresql.org/docs/current/ddl-schemas.html#DDL-SCHEMAS-PUBLIC
+  EOT
+  value       = "public"
+}
+
 output "db_username" {
   description = "Master username"
   value       = aws_db_instance.primary.username
