@@ -61,11 +61,12 @@ data "aws_iam_policy_document" "ecs_task_execution_policy_document" {
 data "aws_iam_policy_document" "ecs_task" {
   # source_policy_documents = [data.aws_iam_policy.ecs_task_role_policy.policy]
 
+  # SSM and KMS permissions for ECS Exec
   statement {
     effect = "Allow"
     actions = [
       "ssm:GetParameters",
-      "kms:Decript",
+      "kms:Decrypt",
       "ssmmessages:CreateDataChannel",
       "ssmmessages:OpenDataChannel",
       "ssmmessages:OpenControlChannel",
@@ -73,4 +74,32 @@ data "aws_iam_policy_document" "ecs_task" {
     ]
     resources = ["*"]
   }
+
+  # S3 permissions for backend storage bucket
+  # statement {
+  #   effect = "Allow"
+  #   actions = [
+  #     "s3:GetObject",
+  #     "s3:PutObject",
+  #     "s3:DeleteObject",
+  #     "s3:ListBucket",
+  #     "s3:GetBucketLocation"
+  #   ]
+  #   resources = [
+  #     "arn:aws:s3:::${var.aws_bucket}",
+  #     "arn:aws:s3:::${var.aws_bucket}/*"
+  #   ]
+  # }
+
+  # SES permissions for sending emails
+  # statement {
+  #   effect = "Allow"
+  #   actions = [
+  #     "ses:SendEmail",
+  #     "ses:SendRawEmail",
+  #     "ses:SendTemplatedEmail",
+  #     "ses:SendBulkTemplatedEmail"
+  #   ]
+  #   resources = ["*"]
+  # }
 }

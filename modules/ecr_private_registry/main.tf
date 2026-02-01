@@ -1,6 +1,10 @@
 resource "aws_ecr_repository" "this" {
   name = var.repository_name
 
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
   tags = merge(
     var.tags,
     {
@@ -12,23 +16,33 @@ resource "aws_ecr_repository" "this" {
 resource "aws_ecr_lifecycle_policy" "this" {
   repository = aws_ecr_repository.this.name
 
-  policy = <<EOF
-  {
-    "rules": [
+  policy = jsonencode({
+    rules = [
       {
-        "rulePriority": 1,
-        "description": "Expire untagged image older than 3 days",
-        "selection": {
-          "tagStatus": "untagged",
-          "countType": "sinceImagePushed",
-          "countUnit": "days",
-          "countNumber": 3
-        },
-        "action": {
-          "type": "expire"
+        rulePriority = 1
+        description  = "Delete untagged images after ${var.untagged_retention_days} days"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = var.untagged_retention_days
+        }
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 2
+        description  = "Keep last ${var.image_retention_count} images (any tag status)"
+        selection = {
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = var.image_retention_count
+        }
+        action = {
+          type = "expire"
         }
       }
     ]
-  }
-  EOF
+  })
 }

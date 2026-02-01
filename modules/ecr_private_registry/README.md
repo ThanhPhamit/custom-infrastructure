@@ -7,13 +7,13 @@ Terraform module which creates an ECR private repository for Docker images.
 This module supports creating:
 
 - **ECR Repository** - Private Docker image repository
-- **Lifecycle Policy** - Automatic cleanup of old images
-- **Repository Policy** - Access control configuration
-- **Image Scanning** - Vulnerability scanning on push
+- **Lifecycle Policy** - Automatic cleanup with environment-specific retention
+- **Image Scanning** - Vulnerability scanning on push (enabled by default)
+- **Cost Optimization** - Configurable retention to reduce storage costs
 
 ## Usage
 
-### Example 1: Basic ECR Repository
+### Example 1: Basic ECR Repository (Default)
 
 ```terraform
 module "ecr_api" {
@@ -22,13 +22,52 @@ module "ecr_api" {
   repository_name = "${var.environment}-${var.app_name}-api"
 
   tags = {
-    Environment = "production"
+    Environment = "staging"
     Terraform   = "true"
   }
 }
 ```
 
-### Example 2: Multiple Repositories
+### Example 2: Environment-Specific Retention
+
+Configure retention based on environment:
+
+```terraform
+# DEV: Keep 20 images (~1-2 weeks)
+module "ecr_dev" {
+  source = "../../modules/ecr_private_registry"
+
+  repository_name       = "dev-${var.app_name}-api"
+  image_retention_count = 20
+  untagged_retention_days = 7
+
+  tags = local.tags
+}
+
+# STAGING: Keep 50 images (~1 month)
+module "ecr_stg" {
+  source = "../../modules/ecr_private_registry"
+
+  repository_name       = "stg-${var.app_name}-api"
+  image_retention_count = 50  # Keep last 50 for STAGING
+  untagged_retention_days = 7
+
+  tags = local.tags
+}
+
+# PROD: Keep 100 images (~3 months)
+module "ecr_prod" {
+  source = "../../modules/ecr_private_registry"
+
+  repository_name       = "prod-${var.app_name}-api"
+  image_retention_count = 100  # Keep last 100 for PROD
+  untagged_retention_days = 7
+
+  tags = local.tags
+}
+```
+
+### Example 3: Multiple Repositories
 
 ```terraform
 module "ecr_nuxt" {
@@ -102,11 +141,36 @@ docker pull <account-id>.dkr.ecr.ap-northeast-1.amazonaws.com/staging-my-app-api
 
 ## Lifecycle Policy
 
-The module includes a default lifecycle policy that:
+The module includes an automatic lifecycle policy with two rules:
 
-- Keeps the last 30 tagged images
-- Removes untagged images older than 1 day
+**Rule 1: Image Count Limit**
+
+- Keeps the last N tagged images (configurable per environment)
+- Automatically expires older images when limit is reached
 - Helps manage storage costs
+
+**Rule 2: Untagged Image Cleanup**
+
+- Removes untagged images after X days (default: 7 days)
+- Prevents orphaned images from consuming storage
+
+### Retention Strategy by Environment
+
+| Environment | Retention Count | Typical Coverage | Use Case                        |
+| ----------- | --------------- | ---------------- | ------------------------------- |
+| **DEV**     | 20 images       | ~1-2 weeks       | Rapid iteration, short history  |
+| **STAGING** | 50 images       | ~1 month         | Testing cycles, medium rollback |
+| **PROD**    | 100 images      | ~3 months        | Critical, long-term rollback    |
+
+### Cost Impact
+
+- ECR storage pricing: $0.10/GB/month
+- Average image size: ~500MB
+- **DEV (20 images)**: ~$1/month
+- **STAGING (50 images)**: ~$2.50/month
+- **PROD (100 images)**: ~$5/month
+
+Without lifecycle policy (~500 images): ~$25/month → **With policy: ~$8.50/month (66% savings)**
 
 ## GitHub Actions Integration
 
@@ -133,10 +197,12 @@ The module includes a default lifecycle policy that:
 
 ## Inputs
 
-| Name            | Description                | Type          | Default | Required |
-| --------------- | -------------------------- | ------------- | ------- | :------: |
-| repository_name | Name of the ECR repository | `string`      | n/a     |   yes    |
-| tags            | Tags to apply to resources | `map(string)` | `{}`    |    no    |
+| Name                    | Description                                                     | Type          | Default | Required |
+| ----------------------- | --------------------------------------------------------------- | ------------- | ------- | :------: |
+| repository_name         | Name of the ECR repository                                      | `string`      | n/a     |   yes    |
+| image_retention_count   | Number of tagged images to retain (DEV: 20, STG: 50, PROD: 100) | `number`      | `50`    |    no    |
+| untagged_retention_days | Days to keep untagged images before deletion                    | `number`      | `7`     |    no    |
+| tags                    | Tags to apply to resources                                      | `map(string)` | `{}`    |    no    |
 
 ## Outputs
 

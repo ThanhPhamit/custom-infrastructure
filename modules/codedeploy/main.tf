@@ -117,6 +117,32 @@ resource "aws_s3_bucket_ownership_controls" "codedeploy_revisions" {
   }
 }
 
+# S3 Lifecycle Policy - Cleanup old appspec files
+# Appspec files are small (~2-5KB), so STANDARD_IA would cost MORE due to 128KB minimum charge
+resource "aws_s3_bucket_lifecycle_configuration" "codedeploy_revisions" {
+  bucket = aws_s3_bucket.codedeploy_revisions.id
+
+  rule {
+    id     = "cleanup-old-appspecs"
+    status = "Enabled"
+
+    # Apply to all objects in the bucket
+    filter {}
+
+    # Delete appspec files after retention period (default 90 days)
+    expiration {
+      days = var.appspec_retention_days
+    }
+
+    # Clean up old versions quickly (if versioning enabled)
+    noncurrent_version_expiration {
+      noncurrent_days = var.appspec_noncurrent_retention_days
+    }
+  }
+
+  depends_on = [aws_s3_bucket_versioning.codedeploy_revisions]
+}
+
 resource "aws_s3_bucket_policy" "codedeploy_revisions_policy" {
   bucket = aws_s3_bucket.codedeploy_revisions.id
 
