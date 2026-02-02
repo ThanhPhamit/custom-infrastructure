@@ -58,6 +58,12 @@ variable "task_cpu_size" {}
 variable "task_memory_size" {}
 variable "app_health_check_path" {}
 variable "repository_url" {}
+
+variable "assign_public_ip" {
+  type        = bool
+  description = "Assign public IP to ECS tasks (required when running in public subnets without NAT Gateway)"
+  default     = false
+}
 variable "repository_arn" {
   type        = string
   description = "The ARN of the ECR repository"
