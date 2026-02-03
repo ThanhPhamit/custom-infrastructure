@@ -43,6 +43,12 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "ecr:PutImage",
       "ecs:RegisterTaskDefinition",
       "ecs:DescribeServices",
+      "ecs:DescribeTaskDefinition",
+      "ecs:ListTagsForResource",
+      "ecs:TagResource",
+      "ecs:RunTask",
+      "ecs:DescribeTasks",
+      "ecs:UpdateService",
       "codedeploy:GetDeploymentGroup",
       "codedeploy:CreateDeployment",
       "codedeploy:GetDeployment",
@@ -59,7 +65,8 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "ecs:RunTask",
       "ecs:DescribeTasks",
       "ecs:UpdateService",
-      "cloudfront:CreateInvalidation"
+      "cloudfront:CreateInvalidation",
+      "cloudfront:GetInvalidation"
     ]
 
     resources = ["*"]

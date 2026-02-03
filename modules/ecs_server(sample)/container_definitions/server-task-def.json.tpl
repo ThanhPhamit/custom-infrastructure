@@ -97,7 +97,7 @@
     "healthCheck": {
       "command": [
         "CMD-SHELL",
-        "curl -f http://localhost:${container_port}${health_check_path} || exit 1"
+        "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:${container_port}${health_check_path}')\" || exit 1"
       ],
       "interval": 30,
       "retries": 5,
