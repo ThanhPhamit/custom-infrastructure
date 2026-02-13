@@ -68,7 +68,7 @@ module "cloudwatch_alarm_ecs" {
 
   # Log monitoring
   ecs_cloudwatch_log_group_name  = module.ecs_api.ecs_cloudwatch_log_group_name
-  cw_alarm_ecs_log_error_pattern = "ERROR ?error ?CRITICAL ?Exception ?Traceback"
+  cw_alarm_ecs_log_error_pattern = "?ERROR ?error ?CRITICAL ?Exception ?Traceback"
 
   tags = {
     Environment = "production"
@@ -128,7 +128,7 @@ module "cloudwatch_alarm_ecs" {
 
   # Log error detection
   ecs_cloudwatch_log_group_name  = module.ecs_nest.ecs_cloudwatch_log_group_name
-  cw_alarm_ecs_log_error_pattern = "InternalServerErrorException ?ERROR ?error ?CRITICAL ?Exception ?Traceback ?\"❌\""
+  cw_alarm_ecs_log_error_pattern = "?InternalServerErrorException ?ERROR ?error ?CRITICAL ?Exception ?Traceback ?\"❌\""
 
   tags = {
     Environment = "staging"
@@ -159,16 +159,16 @@ module "cloudwatch_alarm_ecs" {
 
 ```hcl
 # Node.js/NestJS
-cw_alarm_ecs_log_error_pattern = "InternalServerErrorException ?ERROR ?error ?CRITICAL ?Exception"
+cw_alarm_ecs_log_error_pattern = "?InternalServerErrorException ?ERROR ?error ?CRITICAL ?Exception"
 
 # Python/Django
-cw_alarm_ecs_log_error_pattern = "ERROR ?error ?CRITICAL ?Exception ?Traceback"
+cw_alarm_ecs_log_error_pattern = "?ERROR ?error ?CRITICAL ?Exception ?Traceback"
 
 # Java/Spring
-cw_alarm_ecs_log_error_pattern = "ERROR ?Exception ?FATAL ?java.lang"
+cw_alarm_ecs_log_error_pattern = "?ERROR ?Exception ?FATAL ?java.lang"
 
 # General
-cw_alarm_ecs_log_error_pattern = "ERROR ?error ?CRITICAL ?FATAL ?Exception"
+cw_alarm_ecs_log_error_pattern = "?ERROR ?error ?CRITICAL ?FATAL ?Exception"
 ```
 
 ## Inputs
