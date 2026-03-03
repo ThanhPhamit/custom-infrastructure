@@ -88,6 +88,13 @@ module "waf_cloudfront" {
     aws = aws.us_east_1
   }
 
+  # Action modes (block = enforce, count = monitor only)
+  ip_reputation_action_mode    = "block"  # Always-on: known bad IPs
+  rate_limit_action_mode       = "block"  # Always-on: HTTP flood protection
+  crs_action_mode              = "block"  # Always-on: OWASP Top 10
+  anonymous_ip_action_mode     = "count"  # Preset ON for CLOUDFRONT
+  known_bad_inputs_action_mode = "count"  # Preset ON for CLOUDFRONT
+
   tags = local.tags
 }
 
@@ -107,6 +114,14 @@ module "waf_alb" {
   app_name     = "${var.environment}-${var.app_name}"
   scope        = "REGIONAL"
   service_type = "ALB"
+
+  # Action modes (block = enforce, count = monitor only)
+  ip_reputation_action_mode    = "block"  # Always-on: known bad IPs
+  rate_limit_action_mode       = "block"  # Always-on: HTTP flood protection
+  crs_action_mode              = "block"  # Always-on: OWASP Top 10
+  body_size_action_mode        = "count"  # Preset ON for ALB
+  sql_injection_action_mode    = "count"  # Preset ON for ALB
+  known_bad_inputs_action_mode = "count"  # Preset ON for ALB
 
   tags = local.tags
 }
@@ -134,6 +149,14 @@ module "waf_api" {
   # Override preset: disable body size restriction for this API
   enable_body_size_restriction = false
 
+  # Action modes (block = enforce, count = monitor only)
+  ip_reputation_action_mode    = "block"  # Always-on: known bad IPs
+  rate_limit_action_mode       = "block"  # Always-on: HTTP flood protection
+  crs_action_mode              = "block"  # Always-on: OWASP Top 10
+  geo_block_action_mode        = "count"  # Manually enabled above
+  sql_injection_action_mode    = "count"  # Preset ON for API_GATEWAY
+  known_bad_inputs_action_mode = "count"  # Preset ON for API_GATEWAY
+
   tags = local.tags
 }
 
@@ -155,6 +178,13 @@ module "waf_cognito" {
   # IP allowlist for internal tools
   enable_ip_allowlist  = true
   allowed_ip_addresses = ["10.0.0.0/8", "172.16.0.0/12"]
+
+  # Action modes (block = enforce, count = monitor only)
+  ip_reputation_action_mode = "block"  # Always-on: known bad IPs
+  rate_limit_action_mode    = "block"  # Always-on: HTTP flood protection
+  crs_action_mode           = "block"  # Always-on: OWASP Top 10
+  anonymous_ip_action_mode  = "count"  # Preset ON for COGNITO
+  bot_control_action_mode   = "count"  # Preset ON for COGNITO ($)
 
   tags = local.tags
 }
@@ -179,6 +209,14 @@ module "waf_custom" {
   enable_known_bad_inputs         = true
   enable_bot_control              = true
   bot_control_inspection_level    = "TARGETED"
+
+  # Action modes (block = enforce, count = monitor only)
+  ip_reputation_action_mode    = "block"  # Always-on: known bad IPs
+  rate_limit_action_mode       = "block"  # Always-on: HTTP flood protection
+  crs_action_mode              = "block"  # Always-on: OWASP Top 10
+  sql_injection_action_mode    = "count"  # Manually enabled above
+  known_bad_inputs_action_mode = "count"  # Manually enabled above
+  bot_control_action_mode      = "count"  # Manually enabled above ($)
 
   tags = local.tags
 }
@@ -210,7 +248,15 @@ module "waf_cloudfront" {
   scope        = "CLOUDFRONT"
   service_type = "CLOUDFRONT"
   providers    = { aws = aws.us_east_1 }
-  tags         = local.tags
+
+  # Action modes
+  ip_reputation_action_mode    = "block"
+  rate_limit_action_mode       = "block"
+  crs_action_mode              = "block"
+  anonymous_ip_action_mode     = "count"  # Preset ON
+  known_bad_inputs_action_mode = "count"  # Preset ON
+
+  tags = local.tags
 }
 
 # App layer — filter SQLi, oversized payloads, protect backend
@@ -219,7 +265,16 @@ module "waf_alb" {
   app_name     = "${var.environment}-${var.app_name}"
   scope        = "REGIONAL"
   service_type = "ALB"
-  tags         = local.tags
+
+  # Action modes
+  ip_reputation_action_mode    = "block"
+  rate_limit_action_mode       = "block"
+  crs_action_mode              = "block"
+  body_size_action_mode        = "count"  # Preset ON
+  sql_injection_action_mode    = "count"  # Preset ON
+  known_bad_inputs_action_mode = "count"  # Preset ON
+
+  tags = local.tags
 }
 
 # Associate
@@ -263,6 +318,15 @@ module "waf_cloudfront" {
   enable_sql_injection_protection = true
   enable_body_size_restriction    = true
 
+  # Action modes
+  ip_reputation_action_mode    = "block"
+  rate_limit_action_mode       = "block"
+  crs_action_mode              = "block"
+  anonymous_ip_action_mode     = "count"  # Preset ON
+  known_bad_inputs_action_mode = "count"  # Preset ON
+  sql_injection_action_mode    = "count"  # Override enabled above
+  body_size_action_mode        = "count"  # Override enabled above
+
   tags = local.tags
 }
 ```
@@ -291,20 +355,103 @@ module "waf_cloudfront" {
 
 > **Important:** CloudFront WAF configurations **always** live in `us-east-1`, regardless of your application region.
 
+## Rule Action Modes: `block` vs `count`
+
+Every rule has a `*_action_mode` variable to toggle between **enforcing** and **monitoring**:
+
+| Mode      | Behavior                                  | Use When                           |
+| --------- | ----------------------------------------- | ---------------------------------- |
+| `"block"` | Actively block/drop matching requests     | Production (confirmed safe)        |
+| `"count"` | Log & count only — request passes through | Testing / dry-run / initial deploy |
+
+### Recommended Rollout Workflow
+
+```
+  Week 1-2: Deploy all rules in "count" mode
+       │    └─ Monitor CloudWatch metrics for false positives
+       ▼
+  Week 3:   Switch critical rules to "block"
+       │    └─ ip_reputation, rate_limit, crs (OWASP)
+       ▼
+  Week 4+:  Switch remaining rules to "block" one by one
+            └─ geo_block, anonymous_ip, body_size, sql_injection,
+               known_bad_inputs, bot_control
+```
+
+### Default Action Modes
+
+| Rule                   | Variable                       | Default   | Reason                                |
+| ---------------------- | ------------------------------ | --------- | ------------------------------------- |
+| IP Reputation (P1)     | `ip_reputation_action_mode`    | `"block"` | Critical — blocks known bad IPs       |
+| Rate Limit (P50)       | `rate_limit_action_mode`       | `"block"` | Critical — prevents HTTP floods       |
+| CRS / OWASP (P100)     | `crs_action_mode`              | `"block"` | Critical — OWASP Top 10 protection    |
+| Geo-blocking (P20)     | `geo_block_action_mode`        | `"count"` | Test first — may block legit users    |
+| Anonymous IP (P30)     | `anonymous_ip_action_mode`     | `"count"` | Test first — may block VPN users      |
+| Body Size (P60)        | `body_size_action_mode`        | `"count"` | Test first — tune max_body_size       |
+| SQL Injection (P70)    | `sql_injection_action_mode`    | `"count"` | Test first — possible false positives |
+| Known Bad Inputs (P80) | `known_bad_inputs_action_mode` | `"count"` | Test first — review logs first        |
+| Bot Control (P90)      | `bot_control_action_mode`      | `"count"` | Test first — may block good bots      |
+
+> **Note:** IP Allowlist (P10) always uses `allow` action — it's not affected by action modes.
+
+### Example: Full Count Mode (Safe Initial Deploy)
+
+```terraform
+module "waf_alb" {
+  source       = "../../modules/waf_standard"
+  app_name     = "staging-myapp"
+  scope        = "REGIONAL"
+  service_type = "ALB"
+
+  # All rules in monitoring mode — nothing is blocked
+  ip_reputation_action_mode    = "count"
+  rate_limit_action_mode       = "count"
+  crs_action_mode              = "count"
+  sql_injection_action_mode    = "count"
+  known_bad_inputs_action_mode = "count"
+  body_size_action_mode        = "count"
+
+  tags = local.tags
+}
+```
+
+### Example: Gradual Enforcement (After Testing)
+
+```terraform
+module "waf_alb" {
+  source       = "../../modules/waf_standard"
+  app_name     = "prod-myapp"
+  scope        = "REGIONAL"
+  service_type = "ALB"
+
+  # Critical rules enforcing
+  ip_reputation_action_mode    = "block"
+  rate_limit_action_mode       = "block"
+  crs_action_mode              = "block"
+
+  # Still testing these — will switch to "block" after review
+  sql_injection_action_mode    = "count"
+  known_bad_inputs_action_mode = "count"
+  body_size_action_mode        = "count"
+
+  tags = local.tags
+}
+```
+
 ## Rule Priority Map
 
-| Priority | Rule                         | Type               | Status    |
-| -------- | ---------------------------- | ------------------ | --------- |
-| 1        | IP Reputation List           | AWS Managed        | Always on |
-| 10       | IP Allowlist                 | Custom (IP Set)    | Optional  |
-| 20       | Geo-blocking                 | Custom (Geo Match) | Optional  |
-| 30       | Anonymous IP List            | AWS Managed        | Preset    |
-| 50       | Rate Limiting                | Custom (Rate)      | Always on |
-| 60       | Body Size Restriction        | Custom (Size)      | Preset    |
-| 70       | SQL Injection (SQLi)         | AWS Managed        | Preset    |
-| 80       | Known Bad Inputs             | AWS Managed        | Preset    |
-| 90       | Bot Control                  | AWS Managed ($)    | Preset    |
-| 100      | Core Rule Set (OWASP Top 10) | AWS Managed        | Always on |
+| Priority | Rule                         | Type               | Status    | Default Action |
+| -------- | ---------------------------- | ------------------ | --------- | -------------- |
+| 1        | IP Reputation List           | AWS Managed        | Always on | `block`        |
+| 10       | IP Allowlist                 | Custom (IP Set)    | Optional  | `allow`        |
+| 20       | Geo-blocking                 | Custom (Geo Match) | Optional  | `count`        |
+| 30       | Anonymous IP List            | AWS Managed        | Preset    | `count`        |
+| 50       | Rate Limiting                | Custom (Rate)      | Always on | `block`        |
+| 60       | Body Size Restriction        | Custom (Size)      | Preset    | `count`        |
+| 70       | SQL Injection (SQLi)         | AWS Managed        | Preset    | `count`        |
+| 80       | Known Bad Inputs             | AWS Managed        | Preset    | `count`        |
+| 90       | Bot Control                  | AWS Managed ($)    | Preset    | `count`        |
+| 100      | Core Rule Set (OWASP Top 10) | AWS Managed        | Always on | `block`        |
 
 > Priorities are spaced to allow inserting additional custom rules in between if needed.
 
@@ -340,6 +487,17 @@ module "waf" {
 | service_type                    | Target service preset (see Presets table)                    | `string`       | `"CUSTOM"` |    no    |
 | rate_limit_override             | Override preset rate limit (requests/5min/IP). null = preset | `number`       | `null`     |    no    |
 | log_retention                   | CloudWatch log retention in days                             | `number`       | `7`        |    no    |
+| **Action Mode Variables**       |                                                              |                |            |          |
+| ip_reputation_action_mode       | IP Reputation (P1): `"block"` or `"count"`                   | `string`       | `"block"`  |    no    |
+| rate_limit_action_mode          | Rate Limit (P50): `"block"` or `"count"`                     | `string`       | `"block"`  |    no    |
+| crs_action_mode                 | CRS / OWASP (P100): `"block"` or `"count"`                   | `string`       | `"block"`  |    no    |
+| geo_block_action_mode           | Geo-blocking (P20): `"block"` or `"count"`                   | `string`       | `"count"`  |    no    |
+| anonymous_ip_action_mode        | Anonymous IP (P30): `"block"` or `"count"`                   | `string`       | `"count"`  |    no    |
+| body_size_action_mode           | Body Size (P60): `"block"` or `"count"`                      | `string`       | `"count"`  |    no    |
+| sql_injection_action_mode       | SQL Injection (P70): `"block"` or `"count"`                  | `string`       | `"count"`  |    no    |
+| known_bad_inputs_action_mode    | Known Bad Inputs (P80): `"block"` or `"count"`               | `string`       | `"count"`  |    no    |
+| bot_control_action_mode         | Bot Control (P90): `"block"` or `"count"`                    | `string`       | `"count"`  |    no    |
+| **Rule Enable/Disable**         |                                                              |                |            |          |
 | enable_ip_allowlist             | Enable IP allowlist rule                                     | `bool`         | `false`    |    no    |
 | allowed_ip_addresses            | IPv4 CIDRs to allowlist                                      | `list(string)` | `[]`       |    no    |
 | enable_geo_block                | Enable geo-blocking rule                                     | `bool`         | `false`    |    no    |
@@ -391,7 +549,3 @@ module "waf" {
 4. **Rate Limit** is evaluated per IP over a 5-minute sliding window.
 5. **CRS SizeRestrictions_BODY** is overridden to `allow` by default to support file uploads. Remove the override in `main.tf` if you want strict body size enforcement via CRS.
 6. **WAF Logs** are written to CloudWatch with the required `aws-waf-logs-` prefix.
-
-## License
-
-Apache 2 Licensed. See LICENSE for full details.

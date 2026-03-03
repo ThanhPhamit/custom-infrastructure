@@ -30,8 +30,18 @@ resource "aws_wafv2_web_acl" "this" {
     name     = "AWSManagedRulesAmazonIpReputationList"
     priority = 1
 
-    override_action {
-      none {}
+    dynamic "override_action" {
+      for_each = [var.ip_reputation_action_mode]
+      content {
+        dynamic "none" {
+          for_each = override_action.value == "block" ? [1] : []
+          content {}
+        }
+        dynamic "count" {
+          for_each = override_action.value == "count" ? [1] : []
+          content {}
+        }
+      }
     }
 
     statement {
@@ -53,8 +63,18 @@ resource "aws_wafv2_web_acl" "this" {
     name     = "RateLimitRule"
     priority = 50
 
-    action {
-      block {}
+    dynamic "action" {
+      for_each = [var.rate_limit_action_mode]
+      content {
+        dynamic "block" {
+          for_each = action.value == "block" ? [1] : []
+          content {}
+        }
+        dynamic "count" {
+          for_each = action.value == "count" ? [1] : []
+          content {}
+        }
+      }
     }
 
     statement {
@@ -76,8 +96,18 @@ resource "aws_wafv2_web_acl" "this" {
     name     = "AWSManagedRulesCommonRuleSet"
     priority = 100
 
-    override_action {
-      none {}
+    dynamic "override_action" {
+      for_each = [var.crs_action_mode]
+      content {
+        dynamic "none" {
+          for_each = override_action.value == "block" ? [1] : []
+          content {}
+        }
+        dynamic "count" {
+          for_each = override_action.value == "count" ? [1] : []
+          content {}
+        }
+      }
     }
 
     statement {
@@ -137,8 +167,18 @@ resource "aws_wafv2_web_acl" "this" {
       name     = "GeoBlockRule"
       priority = 20
 
-      action {
-        block {}
+      dynamic "action" {
+        for_each = [var.geo_block_action_mode]
+        content {
+          dynamic "block" {
+            for_each = action.value == "block" ? [1] : []
+            content {}
+          }
+          dynamic "count" {
+            for_each = action.value == "count" ? [1] : []
+            content {}
+          }
+        }
       }
 
       statement {
@@ -162,8 +202,18 @@ resource "aws_wafv2_web_acl" "this" {
       name     = "AWSManagedRulesAnonymousIpList"
       priority = 30
 
-      override_action {
-        none {}
+      dynamic "override_action" {
+        for_each = [var.anonymous_ip_action_mode]
+        content {
+          dynamic "none" {
+            for_each = override_action.value == "block" ? [1] : []
+            content {}
+          }
+          dynamic "count" {
+            for_each = override_action.value == "count" ? [1] : []
+            content {}
+          }
+        }
       }
 
       statement {
@@ -188,8 +238,18 @@ resource "aws_wafv2_web_acl" "this" {
       name     = "BodySizeRestrictionRule"
       priority = 60
 
-      action {
-        block {}
+      dynamic "action" {
+        for_each = [var.body_size_action_mode]
+        content {
+          dynamic "block" {
+            for_each = action.value == "block" ? [1] : []
+            content {}
+          }
+          dynamic "count" {
+            for_each = action.value == "count" ? [1] : []
+            content {}
+          }
+        }
       }
 
       statement {
@@ -224,8 +284,18 @@ resource "aws_wafv2_web_acl" "this" {
       name     = "AWSManagedRulesSQLiRuleSet"
       priority = 70
 
-      override_action {
-        none {}
+      dynamic "override_action" {
+        for_each = [var.sql_injection_action_mode]
+        content {
+          dynamic "none" {
+            for_each = override_action.value == "block" ? [1] : []
+            content {}
+          }
+          dynamic "count" {
+            for_each = override_action.value == "count" ? [1] : []
+            content {}
+          }
+        }
       }
 
       statement {
@@ -250,8 +320,18 @@ resource "aws_wafv2_web_acl" "this" {
       name     = "AWSManagedRulesKnownBadInputsRuleSet"
       priority = 80
 
-      override_action {
-        none {}
+      dynamic "override_action" {
+        for_each = [var.known_bad_inputs_action_mode]
+        content {
+          dynamic "none" {
+            for_each = override_action.value == "block" ? [1] : []
+            content {}
+          }
+          dynamic "count" {
+            for_each = override_action.value == "count" ? [1] : []
+            content {}
+          }
+        }
       }
 
       statement {
@@ -277,8 +357,18 @@ resource "aws_wafv2_web_acl" "this" {
       name     = "AWSManagedRulesBotControlRuleSet"
       priority = 90
 
-      override_action {
-        none {}
+      dynamic "override_action" {
+        for_each = [var.bot_control_action_mode]
+        content {
+          dynamic "none" {
+            for_each = override_action.value == "block" ? [1] : []
+            content {}
+          }
+          dynamic "count" {
+            for_each = override_action.value == "count" ? [1] : []
+            content {}
+          }
+        }
       }
 
       statement {

@@ -53,6 +53,112 @@ variable "log_retention" {
 }
 
 # ---------------------------------------------------------------------------
+# Rule Action Modes: "block" vs "count" (per-rule toggle)
+# ---------------------------------------------------------------------------
+# "block"  – Actively enforce (block matching requests). Use in production.
+# "count"  – Monitor only (log & count, never block). Use for testing/dry-run.
+#
+# Recommended workflow for production sites:
+#   1. Deploy with all *_action_mode = "count"  → observe CloudWatch metrics 1-2 weeks
+#   2. Gradually switch each rule to "block" once you confirm no false positives
+#   3. Start with critical rules (IP Reputation, Rate Limit, CRS) then move to others
+#
+# Default values:
+#   Always-on rules    → "block" (critical security baseline)
+#   Optional rules     → "count" (safe default for initial testing)
+# ---------------------------------------------------------------------------
+
+variable "ip_reputation_action_mode" {
+  description = "Action for IP Reputation List (P1). 'block' = enforce, 'count' = monitor only."
+  type        = string
+  default     = "block"
+  validation {
+    condition     = contains(["block", "count"], var.ip_reputation_action_mode)
+    error_message = "Must be 'block' or 'count'."
+  }
+}
+
+variable "rate_limit_action_mode" {
+  description = "Action for Rate Limit rule (P50). 'block' = enforce, 'count' = monitor only."
+  type        = string
+  default     = "block"
+  validation {
+    condition     = contains(["block", "count"], var.rate_limit_action_mode)
+    error_message = "Must be 'block' or 'count'."
+  }
+}
+
+variable "crs_action_mode" {
+  description = "Action for Common Rule Set / OWASP Top 10 (P100). 'block' = enforce, 'count' = monitor only."
+  type        = string
+  default     = "block"
+  validation {
+    condition     = contains(["block", "count"], var.crs_action_mode)
+    error_message = "Must be 'block' or 'count'."
+  }
+}
+
+variable "geo_block_action_mode" {
+  description = "Action for Geo-blocking rule (P20). 'block' = enforce, 'count' = monitor only."
+  type        = string
+  default     = "count"
+  validation {
+    condition     = contains(["block", "count"], var.geo_block_action_mode)
+    error_message = "Must be 'block' or 'count'."
+  }
+}
+
+variable "anonymous_ip_action_mode" {
+  description = "Action for Anonymous IP List rule (P30). 'block' = enforce, 'count' = monitor only."
+  type        = string
+  default     = "count"
+  validation {
+    condition     = contains(["block", "count"], var.anonymous_ip_action_mode)
+    error_message = "Must be 'block' or 'count'."
+  }
+}
+
+variable "body_size_action_mode" {
+  description = "Action for Body Size Restriction rule (P60). 'block' = enforce, 'count' = monitor only."
+  type        = string
+  default     = "count"
+  validation {
+    condition     = contains(["block", "count"], var.body_size_action_mode)
+    error_message = "Must be 'block' or 'count'."
+  }
+}
+
+variable "sql_injection_action_mode" {
+  description = "Action for SQL Injection rule set (P70). 'block' = enforce, 'count' = monitor only."
+  type        = string
+  default     = "count"
+  validation {
+    condition     = contains(["block", "count"], var.sql_injection_action_mode)
+    error_message = "Must be 'block' or 'count'."
+  }
+}
+
+variable "known_bad_inputs_action_mode" {
+  description = "Action for Known Bad Inputs rule (P80). 'block' = enforce, 'count' = monitor only."
+  type        = string
+  default     = "count"
+  validation {
+    condition     = contains(["block", "count"], var.known_bad_inputs_action_mode)
+    error_message = "Must be 'block' or 'count'."
+  }
+}
+
+variable "bot_control_action_mode" {
+  description = "Action for Bot Control rule (P90). 'block' = enforce, 'count' = monitor only."
+  type        = string
+  default     = "count"
+  validation {
+    condition     = contains(["block", "count"], var.bot_control_action_mode)
+    error_message = "Must be 'block' or 'count'."
+  }
+}
+
+# ---------------------------------------------------------------------------
 # Optional: IP Allowlist (priority 10)
 # Always user-controlled – no preset logic. Default: off.
 # ---------------------------------------------------------------------------
