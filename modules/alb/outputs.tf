@@ -29,3 +29,8 @@ output "id" {
 output "domain" {
   value = aws_lb.alb.dns_name
 }
+
+output "alb_arn" {
+  description = "Full ARN of the ALB (for WAF association reference)"
+  value       = aws_lb.alb.arn
+}

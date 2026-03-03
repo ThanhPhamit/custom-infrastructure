@@ -49,3 +49,9 @@ variable "tags" {
   description = "Tags to apply to resources"
   default     = {}
 }
+
+variable "web_acl_arn" {
+  description = "ARN of the WAFv2 Web ACL to associate with this ALB. Must be REGIONAL scope in the same region as the ALB. Leave empty to disable WAF."
+  type        = string
+  default     = ""
+}

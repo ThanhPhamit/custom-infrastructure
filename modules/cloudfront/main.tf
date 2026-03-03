@@ -92,6 +92,9 @@ resource "aws_cloudfront_distribution" "main" {
   # Price class - controls which edge locations to use
   price_class = var.price_class
 
+  # WAF Web ACL association (must be CLOUDFRONT scope, created in us-east-1)
+  web_acl_id = var.web_acl_arn != "" ? var.web_acl_arn : null
+
   # Logging configuration (optional)
   dynamic "logging_config" {
     for_each = var.enable_logging ? [1] : []

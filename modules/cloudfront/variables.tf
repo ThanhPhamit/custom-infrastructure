@@ -181,3 +181,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "web_acl_arn" {
+  description = "ARN of the WAFv2 Web ACL to associate with this CloudFront distribution. Must be created in us-east-1 with scope=CLOUDFRONT. Leave empty to disable WAF."
+  type        = string
+  default     = ""
+}

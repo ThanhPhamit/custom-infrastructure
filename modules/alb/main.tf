@@ -172,3 +172,10 @@ resource "aws_route53_record" "app_domain_dns_record" {
     }
   }
 }
+
+# WAFv2 Web ACL association (REGIONAL scope)
+resource "aws_wafv2_web_acl_association" "alb" {
+  count        = var.web_acl_arn != "" ? 1 : 0
+  resource_arn = aws_lb.alb.arn
+  web_acl_arn  = var.web_acl_arn
+}
