@@ -366,14 +366,9 @@ variable "gmo_shop_pass" {
 }
 
 # SES SMTP
-variable "email_host_user_secret_arn" {
+variable "email_smtp_secret_arn" {
   type        = string
-  description = "ARN of the SES SMTP username secret in Secrets Manager"
-}
-
-variable "email_host_password_secret_arn" {
-  type        = string
-  description = "ARN of the SES SMTP password secret in Secrets Manager"
+  description = "ARN of the SES SMTP credentials secret in Secrets Manager"
 }
 
 # Twilio

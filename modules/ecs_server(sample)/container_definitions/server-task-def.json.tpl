@@ -76,17 +76,17 @@
       { "name": "INQUIRY_EMAIL_CC_TO", "value": "${inquiry_email_cc_to}" }
     ],
     "secrets": [
-      { "name": "ADMIN_SECRET_KEY", "valueFrom": "${admin_secret_key_secret_arn}" },
-      { "name": "JWT_SECRET_KEY", "valueFrom": "${jwt_secret_key_secret_arn}" },
-      { "name": "JWT_REFRESH_SECRET_KEY", "valueFrom": "${jwt_refresh_secret_key_secret_arn}" },
-      { "name": "CRYPTO_SECRET_KEY", "valueFrom": "${crypto_secret_key_secret_arn}" },
-      { "name": "SECRET_KEY", "valueFrom": "${secret_key_secret_arn}" },
-      { "name": "POSTGRES_PASSWORD", "valueFrom": "${postgres_password_secret_arn}" },
-      { "name": "GMO_SITE_PASS", "valueFrom": "${gmo_site_pass_secret_arn}" },
-      { "name": "GMO_SHOP_PASS", "valueFrom": "${gmo_shop_pass_secret_arn}" },
-      { "name": "EMAIL_HOST_USER", "valueFrom": "${email_host_user_secret_arn}" },
-      { "name": "EMAIL_HOST_PASSWORD", "valueFrom": "${email_host_password_secret_arn}" },
-      { "name": "TWILIO_AUTH_TOKEN", "valueFrom": "${twilio_auth_token_secret_arn}" }
+      { "name": "ADMIN_SECRET_KEY", "valueFrom": "${app_runtime_secret_arn}:admin_secret_key::" },
+      { "name": "JWT_SECRET_KEY", "valueFrom": "${app_runtime_secret_arn}:jwt_secret_key::" },
+      { "name": "JWT_REFRESH_SECRET_KEY", "valueFrom": "${app_runtime_secret_arn}:jwt_refresh_secret_key::" },
+      { "name": "CRYPTO_SECRET_KEY", "valueFrom": "${app_runtime_secret_arn}:crypto_secret_key::" },
+      { "name": "SECRET_KEY", "valueFrom": "${app_runtime_secret_arn}:secret_key::" },
+      { "name": "POSTGRES_PASSWORD", "valueFrom": "${app_runtime_secret_arn}:postgres_password::" },
+      { "name": "GMO_SITE_PASS", "valueFrom": "${app_runtime_secret_arn}:gmo_site_pass::" },
+      { "name": "GMO_SHOP_PASS", "valueFrom": "${app_runtime_secret_arn}:gmo_shop_pass::" },
+      { "name": "TWILIO_AUTH_TOKEN", "valueFrom": "${app_runtime_secret_arn}:twilio_auth_token::" },
+      { "name": "EMAIL_HOST_USER", "valueFrom": "${email_smtp_secret_arn}:username::" },
+      { "name": "EMAIL_HOST_PASSWORD", "valueFrom": "${email_smtp_secret_arn}:password::" }
     ],
     "portMappings": [
       {

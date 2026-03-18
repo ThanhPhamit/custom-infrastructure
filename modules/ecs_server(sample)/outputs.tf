@@ -68,48 +68,51 @@ output "lb_listener_tcp_test_arn" {
 }
 
 # =============================================================================
-# Auto-generated Secrets ARNs (4 secrets)
+# Consolidated App Runtime Secret ARN (single secret)
 # =============================================================================
 
+output "app_runtime_secret_arn" {
+  description = "ARN of consolidated app runtime secret in Secrets Manager"
+  value       = aws_secretsmanager_secret.app_runtime_secrets.arn
+}
+
+# Backward-compatible outputs now point to the same consolidated secret ARN.
 output "admin_secret_key_arn" {
-  description = "ARN of the admin secret key in Secrets Manager"
-  value       = aws_secretsmanager_secret.admin_secret_key.arn
+  description = "ARN of the consolidated app runtime secret in Secrets Manager"
+  value       = aws_secretsmanager_secret.app_runtime_secrets.arn
 }
 
 output "jwt_secret_key_arn" {
-  description = "ARN of the JWT secret key in Secrets Manager"
-  value       = aws_secretsmanager_secret.jwt_secret_key.arn
+  description = "ARN of the consolidated app runtime secret in Secrets Manager"
+  value       = aws_secretsmanager_secret.app_runtime_secrets.arn
 }
 
 output "jwt_refresh_secret_key_arn" {
-  description = "ARN of the JWT refresh secret key in Secrets Manager"
-  value       = aws_secretsmanager_secret.jwt_refresh_secret_key.arn
+  description = "ARN of the consolidated app runtime secret in Secrets Manager"
+  value       = aws_secretsmanager_secret.app_runtime_secrets.arn
 }
 
 output "crypto_secret_key_arn" {
-  description = "ARN of the crypto secret key in Secrets Manager"
-  value       = aws_secretsmanager_secret.crypto_secret_key.arn
+  description = "ARN of the consolidated app runtime secret in Secrets Manager"
+  value       = aws_secretsmanager_secret.app_runtime_secrets.arn
 }
 
-# =============================================================================
-# External Secrets ARNs (4 secrets - stored by this module)
-# =============================================================================
 output "secret_key_arn" {
-  description = "ARN of the application secret key in Secrets Manager"
-  value       = aws_secretsmanager_secret.secret_key.arn
+  description = "ARN of the consolidated app runtime secret in Secrets Manager"
+  value       = aws_secretsmanager_secret.app_runtime_secrets.arn
 }
 
 output "gmo_site_pass_secret_arn" {
-  description = "ARN of the GMO site pass secret in Secrets Manager"
-  value       = aws_secretsmanager_secret.gmo_site_pass.arn
+  description = "ARN of the consolidated app runtime secret in Secrets Manager"
+  value       = aws_secretsmanager_secret.app_runtime_secrets.arn
 }
 
 output "gmo_shop_pass_secret_arn" {
-  description = "ARN of the GMO shop pass secret in Secrets Manager"
-  value       = aws_secretsmanager_secret.gmo_shop_pass.arn
+  description = "ARN of the consolidated app runtime secret in Secrets Manager"
+  value       = aws_secretsmanager_secret.app_runtime_secrets.arn
 }
 
 output "twilio_auth_token_secret_arn" {
-  description = "ARN of the Twilio auth token secret in Secrets Manager"
-  value       = aws_secretsmanager_secret.twilio_auth_token.arn
+  description = "ARN of the consolidated app runtime secret in Secrets Manager"
+  value       = aws_secretsmanager_secret.app_runtime_secrets.arn
 }
