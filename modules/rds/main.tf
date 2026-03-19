@@ -78,7 +78,7 @@ resource "aws_security_group_rule" "db_from_sg" {
 }
 
 #--------------------------------------------------------------
-# Password Management (Secrets Manager)
+# Credentials Management (Secrets Manager)
 #--------------------------------------------------------------
 resource "random_password" "rds" {
   count = local.use_generated_password ? 1 : 0
@@ -88,24 +88,34 @@ resource "random_password" "rds" {
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
-resource "random_uuid" "rds_secret_uuid" {
-  count = local.use_generated_password ? 1 : 0
-}
-
-resource "aws_secretsmanager_secret" "rds_password" {
+resource "aws_secretsmanager_secret" "rds_credentials" {
   count = local.use_generated_password ? 1 : 0
 
-  name        = "${var.app_name}-rds-password-${substr(random_uuid.rds_secret_uuid[0].result, 0, 8)}"
-  description = "RDS master password for ${var.db_name}"
+  name        = "${var.app_name}-rds-credentials"
+  description = "RDS master credentials for ${var.db_name}"
 
   tags = var.tags
 }
 
-resource "aws_secretsmanager_secret_version" "rds_password" {
+resource "aws_secretsmanager_secret_version" "rds_credentials" {
   count = local.use_generated_password ? 1 : 0
 
-  secret_id     = aws_secretsmanager_secret.rds_password[0].id
-  secret_string = random_password.rds[0].result
+  secret_id = aws_secretsmanager_secret.rds_credentials[0].id
+  secret_string = jsonencode({
+    engine   = var.engine
+    host     = split(":", aws_db_instance.primary.endpoint)[0]
+    username = var.db_username
+    password = random_password.rds[0].result
+    dbname   = var.db_database
+    port     = tostring(var.db_port)
+  })
+
+  # Secrets Manager rotation creates new versions and moves AWSCURRENT stage.
+  # Without this, terraform apply would overwrite the rotated password with the
+  # original random_password value, breaking the application.
+  lifecycle {
+    ignore_changes = [secret_string, version_stages]
+  }
 }
 
 #--------------------------------------------------------------
@@ -187,6 +197,8 @@ resource "aws_db_instance" "primary" {
   instance_class = var.instance_class
   port           = var.db_port
 
+  auto_minor_version_upgrade = var.auto_minor_version_upgrade
+
   # Database
   db_name  = var.db_database
   username = var.db_username
@@ -203,6 +215,7 @@ resource "aws_db_instance" "primary" {
   db_subnet_group_name   = local.db_subnet_group_name
   multi_az               = var.multi_az
   availability_zone      = var.multi_az ? null : var.availability_zone
+  publicly_accessible    = false
 
   # Parameters
   parameter_group_name = local.parameter_group_name
@@ -210,6 +223,7 @@ resource "aws_db_instance" "primary" {
   # Backup
   backup_retention_period   = var.backup_retention_period
   backup_window             = var.backup_window
+  maintenance_window        = var.maintenance_window
   delete_automated_backups  = var.delete_automated_backups
   skip_final_snapshot       = var.skip_final_snapshot
   final_snapshot_identifier = var.skip_final_snapshot ? null : var.final_snapshot_identifier
@@ -233,6 +247,12 @@ resource "aws_db_instance" "primary" {
       Name = var.db_name
     }
   )
+
+  # Password is managed by Secrets Manager rotation after initial creation.
+  # Terraform must not overwrite the rotated password on subsequent applies.
+  lifecycle {
+    ignore_changes = [password]
+  }
 }
 
 #--------------------------------------------------------------
@@ -246,10 +266,12 @@ resource "aws_db_instance" "replica" {
   instance_class       = local.replica_instance_class
   parameter_group_name = local.parameter_group_name
 
-  availability_zone = var.replica_availability_zone
-  multi_az          = false # Replica cannot be multi-az
+  availability_zone   = var.replica_availability_zone
+  multi_az            = false # Replica cannot be multi-az
+  publicly_accessible = false
 
-  storage_encrypted = var.storage_encrypted
+  storage_encrypted     = var.storage_encrypted
+  copy_tags_to_snapshot = true
 
   skip_final_snapshot     = true
   backup_retention_period = 7

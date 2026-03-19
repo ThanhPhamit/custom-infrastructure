@@ -118,11 +118,16 @@ resource "aws_secretsmanager_secret_version" "app_runtime_secrets" {
     jwt_refresh_secret_key = random_password.jwt_refresh_secret_key.result
     crypto_secret_key      = random_bytes.crypto_secret_key.base64
     secret_key             = random_password.secret_key.result
-    postgres_password      = data.aws_secretsmanager_secret_version.postgres_password.secret_string
+    postgres_password      = jsondecode(data.aws_secretsmanager_secret_version.postgres_password.secret_string).password
     gmo_site_pass          = var.gmo_site_pass
     gmo_shop_pass          = var.gmo_shop_pass
-    twilio_auth_token      = var.twilio_auth_token
   })
+
+  # RDS rotation Lambda syncs rotated postgres_password into this secret.
+  # Terraform must not revert the rotated value on subsequent applies.
+  lifecycle {
+    ignore_changes = [secret_string, version_stages]
+  }
 }
 
 # =============================================================================

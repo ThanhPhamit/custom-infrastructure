@@ -26,6 +26,11 @@ variable "db_subnet_group_name" {
   type        = string
   description = "Name of an existing DB subnet group (from network module). If provided, private_subnet_ids will be ignored."
   default     = null
+
+  validation {
+    condition     = var.db_subnet_group_name != null || length(var.private_subnet_ids) > 0
+    error_message = "Either db_subnet_group_name must be provided, or private_subnet_ids must contain at least one subnet"
+  }
 }
 
 variable "availability_zone" {
@@ -86,6 +91,12 @@ variable "instance_class" {
   type        = string
   description = "RDS instance class"
   default     = "db.t4g.micro"
+}
+
+variable "auto_minor_version_upgrade" {
+  type        = bool
+  description = "Enable automatic minor version upgrades during maintenance window"
+  default     = true
 }
 
 #--------------------------------------------------------------
@@ -157,6 +168,12 @@ variable "backup_window" {
   default     = "20:57-21:27"
 }
 
+variable "maintenance_window" {
+  type        = string
+  description = "Preferred maintenance window (format: ddd:hh24:mi-ddd:hh24:mi UTC). If null, AWS selects a window."
+  default     = null
+}
+
 variable "delete_automated_backups" {
   type        = bool
   description = "Delete automated backups when instance is deleted"
@@ -173,6 +190,11 @@ variable "final_snapshot_identifier" {
   type        = string
   description = "Name for the final snapshot (required if skip_final_snapshot is false)"
   default     = null
+
+  validation {
+    condition     = var.skip_final_snapshot || (var.final_snapshot_identifier != null && length(trimspace(var.final_snapshot_identifier)) > 0)
+    error_message = "final_snapshot_identifier is required when skip_final_snapshot is false"
+  }
 }
 
 #--------------------------------------------------------------
@@ -234,6 +256,11 @@ variable "parameter_group_name" {
   type        = string
   description = "Name of existing parameter group (if create_parameter_group is false)"
   default     = null
+
+  validation {
+    condition     = var.create_parameter_group || (var.parameter_group_name != null && length(trimspace(var.parameter_group_name)) > 0)
+    error_message = "parameter_group_name is required when create_parameter_group is false"
+  }
 }
 
 variable "custom_parameters" {

@@ -110,13 +110,15 @@ output "db_subnet_group_arn" {
 # Password/Secret Outputs
 #--------------------------------------------------------------
 output "password_secret_arn" {
-  description = "ARN of the Secrets Manager secret containing the password (null if password was provided)"
-  value       = local.use_generated_password ? aws_secretsmanager_secret.rds_password[0].arn : null
+  description = "ARN of the Secrets Manager secret containing RDS credentials JSON (null if password was provided)"
+  value       = local.use_generated_password ? aws_secretsmanager_secret.rds_credentials[0].arn : null
+
+  depends_on = [aws_secretsmanager_secret_version.rds_credentials]
 }
 
 output "password_secret_name" {
-  description = "Name of the Secrets Manager secret containing the password"
-  value       = local.use_generated_password ? aws_secretsmanager_secret.rds_password[0].name : null
+  description = "Name of the Secrets Manager secret containing RDS credentials JSON"
+  value       = local.use_generated_password ? aws_secretsmanager_secret.rds_credentials[0].name : null
 }
 
 #--------------------------------------------------------------
