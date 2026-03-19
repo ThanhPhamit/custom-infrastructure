@@ -313,6 +313,16 @@ output "vpc_endpoint_dynamodb_pl_id" {
   value       = try(aws_vpc_endpoint.dynamodb[0].prefix_list_id, null)
 }
 
+output "vpc_endpoint_secretsmanager_id" {
+  description = "The ID of VPC interface endpoint for Secrets Manager"
+  value       = try(aws_vpc_endpoint.secretsmanager[0].id, null)
+}
+
+output "vpc_endpoint_secretsmanager_sg_id" {
+  description = "Security group ID attached to the Secrets Manager VPC endpoint"
+  value       = try(aws_security_group.vpce_secretsmanager[0].id, null)
+}
+
 ################################################################################
 # Static values (Backwards Compatibility)
 ################################################################################

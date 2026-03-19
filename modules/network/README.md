@@ -15,6 +15,7 @@ This module supports creating:
 - **NAT Gateway** - single, one per AZ, or reuse existing EIPs
 - **Internet Gateway** - for public subnet internet access
 - **VPC Endpoints** - S3 and DynamoDB Gateway endpoints
+- **Secrets Manager Interface Endpoint (Optional)** - private API access without NAT
 - **Route Tables** - separate route tables for each subnet type
 - **Default Security Group** - managed default security group
 - **Default Network ACL** - managed default network ACL
@@ -82,6 +83,7 @@ module "vpc" {
   # VPC Endpoints (free - Gateway type)
   enable_s3_endpoint       = true
   enable_dynamodb_endpoint = true
+  enable_secretsmanager_endpoint = true
 
   # DNS
   enable_dns_hostnames = true
@@ -134,6 +136,7 @@ module "vpc" {
   # VPC Endpoints (free - Gateway type)
   enable_s3_endpoint       = true
   enable_dynamodb_endpoint = true
+  enable_secretsmanager_endpoint = true
 
   # DNS
   enable_dns_hostnames = true
@@ -230,50 +233,53 @@ module "vpc" {
 
 ## Inputs
 
-| Name                     | Description                                    | Type           | Default         | Required |
-| ------------------------ | ---------------------------------------------- | -------------- | --------------- | :------: |
-| name                     | Name to be used on all resources as identifier | `string`       | `""`            |   yes    |
-| vpc_cidr                 | The IPv4 CIDR block for the VPC                | `string`       | `"10.0.0.0/16"` |   yes    |
-| aws_region               | AWS region                                     | `string`       | n/a             |   yes    |
-| azs                      | List of availability zones                     | `list(string)` | `[]`            |   yes    |
-| public_subnets           | List of public subnet CIDRs                    | `list(string)` | `[]`            |    no    |
-| private_subnets          | List of private subnet CIDRs                   | `list(string)` | `[]`            |    no    |
-| database_subnets         | List of database subnet CIDRs                  | `list(string)` | `[]`            |    no    |
-| elasticache_subnets      | List of elasticache subnet CIDRs               | `list(string)` | `[]`            |    no    |
-| intra_subnets            | List of intra subnet CIDRs                     | `list(string)` | `[]`            |    no    |
-| enable_nat_gateway       | Enable NAT Gateway for private subnets         | `bool`         | `false`         |    no    |
-| single_nat_gateway       | Use single NAT Gateway for all AZs             | `bool`         | `false`         |    no    |
-| one_nat_gateway_per_az   | Create one NAT Gateway per AZ                  | `bool`         | `false`         |    no    |
-| enable_dns_hostnames     | Enable DNS hostnames in VPC                    | `bool`         | `true`          |    no    |
-| enable_dns_support       | Enable DNS support in VPC                      | `bool`         | `true`          |    no    |
-| enable_s3_endpoint       | Enable S3 VPC Endpoint                         | `bool`         | `false`         |    no    |
-| enable_dynamodb_endpoint | Enable DynamoDB VPC Endpoint                   | `bool`         | `false`         |    no    |
-| tags                     | Tags to apply to all resources                 | `map(string)`  | `{}`            |    no    |
+| Name                           | Description                                    | Type           | Default         | Required |
+| ------------------------------ | ---------------------------------------------- | -------------- | --------------- | :------: |
+| name                           | Name to be used on all resources as identifier | `string`       | `""`            |   yes    |
+| vpc_cidr                       | The IPv4 CIDR block for the VPC                | `string`       | `"10.0.0.0/16"` |   yes    |
+| aws_region                     | AWS region                                     | `string`       | n/a             |   yes    |
+| azs                            | List of availability zones                     | `list(string)` | `[]`            |   yes    |
+| public_subnets                 | List of public subnet CIDRs                    | `list(string)` | `[]`            |    no    |
+| private_subnets                | List of private subnet CIDRs                   | `list(string)` | `[]`            |    no    |
+| database_subnets               | List of database subnet CIDRs                  | `list(string)` | `[]`            |    no    |
+| elasticache_subnets            | List of elasticache subnet CIDRs               | `list(string)` | `[]`            |    no    |
+| intra_subnets                  | List of intra subnet CIDRs                     | `list(string)` | `[]`            |    no    |
+| enable_nat_gateway             | Enable NAT Gateway for private subnets         | `bool`         | `false`         |    no    |
+| single_nat_gateway             | Use single NAT Gateway for all AZs             | `bool`         | `false`         |    no    |
+| one_nat_gateway_per_az         | Create one NAT Gateway per AZ                  | `bool`         | `false`         |    no    |
+| enable_dns_hostnames           | Enable DNS hostnames in VPC                    | `bool`         | `true`          |    no    |
+| enable_dns_support             | Enable DNS support in VPC                      | `bool`         | `true`          |    no    |
+| enable_s3_endpoint             | Enable S3 VPC Endpoint                         | `bool`         | `false`         |    no    |
+| enable_dynamodb_endpoint       | Enable DynamoDB VPC Endpoint                   | `bool`         | `false`         |    no    |
+| enable_secretsmanager_endpoint | Enable Secrets Manager Interface VPC Endpoint  | `bool`         | `false`         |    no    |
+| tags                           | Tags to apply to all resources                 | `map(string)`  | `{}`            |    no    |
 
 ## Outputs
 
-| Name                          | Description                                            |
-| ----------------------------- | ------------------------------------------------------ |
-| vpc_id                        | The ID of the VPC                                      |
-| vpc_arn                       | The ARN of the VPC                                     |
-| vpc_cidr_block                | The CIDR block of the VPC                              |
-| public_subnets                | List of IDs of public subnets                          |
-| public_subnets_cidr_blocks    | List of CIDR blocks of public subnets                  |
-| private_subnets               | List of IDs of private subnets                         |
-| private_subnets_cidr_blocks   | List of CIDR blocks of private subnets                 |
-| database_subnets              | List of IDs of database subnets                        |
-| database_subnet_group         | ID of database subnet group                            |
-| database_subnet_group_name    | Name of database subnet group                          |
-| elasticache_subnets           | List of IDs of elasticache subnets                     |
-| elasticache_subnet_group      | ID of elasticache subnet group                         |
-| elasticache_subnet_group_name | Name of elasticache subnet group                       |
-| intra_subnets                 | List of IDs of intra subnets                           |
-| nat_ids                       | List of allocation IDs of Elastic IPs for NAT Gateways |
-| nat_public_ips                | List of public Elastic IPs for NAT Gateways            |
-| natgw_ids                     | List of NAT Gateway IDs                                |
-| igw_id                        | The ID of the Internet Gateway                         |
-| public_route_table_ids        | List of IDs of public route tables                     |
-| private_route_table_ids       | List of IDs of private route tables                    |
+| Name                              | Description                                            |
+| --------------------------------- | ------------------------------------------------------ |
+| vpc_id                            | The ID of the VPC                                      |
+| vpc_arn                           | The ARN of the VPC                                     |
+| vpc_cidr_block                    | The CIDR block of the VPC                              |
+| public_subnets                    | List of IDs of public subnets                          |
+| public_subnets_cidr_blocks        | List of CIDR blocks of public subnets                  |
+| private_subnets                   | List of IDs of private subnets                         |
+| private_subnets_cidr_blocks       | List of CIDR blocks of private subnets                 |
+| database_subnets                  | List of IDs of database subnets                        |
+| database_subnet_group             | ID of database subnet group                            |
+| database_subnet_group_name        | Name of database subnet group                          |
+| elasticache_subnets               | List of IDs of elasticache subnets                     |
+| elasticache_subnet_group          | ID of elasticache subnet group                         |
+| elasticache_subnet_group_name     | Name of elasticache subnet group                       |
+| intra_subnets                     | List of IDs of intra subnets                           |
+| nat_ids                           | List of allocation IDs of Elastic IPs for NAT Gateways |
+| nat_public_ips                    | List of public Elastic IPs for NAT Gateways            |
+| natgw_ids                         | List of NAT Gateway IDs                                |
+| igw_id                            | The ID of the Internet Gateway                         |
+| public_route_table_ids            | List of IDs of public route tables                     |
+| private_route_table_ids           | List of IDs of private route tables                    |
+| vpc_endpoint_secretsmanager_id    | The ID of VPC endpoint for Secrets Manager             |
+| vpc_endpoint_secretsmanager_sg_id | Security group ID for Secrets Manager endpoint         |
 
 ## Backward Compatibility
 

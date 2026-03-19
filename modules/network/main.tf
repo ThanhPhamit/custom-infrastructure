@@ -526,6 +526,49 @@ resource "aws_vpc_endpoint_route_table_association" "public_dynamodb" {
   route_table_id  = aws_route_table.public[0].id
 }
 
+resource "aws_security_group" "vpce_secretsmanager" {
+  count = var.create_vpc && var.enable_secretsmanager_endpoint && length(var.private_subnets) > 0 ? 1 : 0
+
+  name_prefix = "${var.name}-vpce-secretsmanager-"
+  description = "Security group for Secrets Manager VPC endpoint"
+  vpc_id      = aws_vpc.this[0].id
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.this[0].cidr_block]
+    description = "Allow HTTPS from VPC CIDR"
+  }
+
+  tags = merge(
+    { "Name" = "${var.name}-vpce-secretsmanager-sg" },
+    var.tags,
+    var.vpc_endpoint_tags
+  )
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_vpc_endpoint" "secretsmanager" {
+  count = var.create_vpc && var.enable_secretsmanager_endpoint && length(var.private_subnets) > 0 ? 1 : 0
+
+  vpc_id              = aws_vpc.this[0].id
+  service_name        = "com.amazonaws.${var.aws_region}.secretsmanager"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = aws_subnet.private[*].id
+  private_dns_enabled = true
+  security_group_ids  = [aws_security_group.vpce_secretsmanager[0].id]
+
+  tags = merge(
+    { "Name" = "${var.name}-secretsmanager-endpoint" },
+    var.tags,
+    var.vpc_endpoint_tags
+  )
+}
+
 ################################################################################
 # Default Security Group
 ################################################################################

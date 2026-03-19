@@ -426,6 +426,12 @@ variable "enable_dynamodb_endpoint" {
   default     = false
 }
 
+variable "enable_secretsmanager_endpoint" {
+  description = "Should be true if you want to provision a Secrets Manager interface endpoint to the VPC"
+  type        = bool
+  default     = false
+}
+
 variable "vpc_endpoint_tags" {
   description = "Additional tags for the VPC Endpoints"
   type        = map(string)
