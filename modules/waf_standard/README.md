@@ -10,8 +10,9 @@ This module supports creating:
 - **Service-Type Presets** - Pre-configured rule sets per target service (ALB, API Gateway, etc.)
 - **Always-On Rules** - IP Reputation, Rate Limiting, OWASP Core Rule Set (CRS)
 - **Optional Rules** - IP Allowlist, Geo-blocking, Anonymous IP, Body Size, SQLi, Known Bad Inputs, Bot Control
-- **CloudWatch Logging** - Automatic WAF log group with configurable retention
 - **Override Support** - Every preset default can be overridden per-deployment
+
+> **Logging & Monitoring** are handled by the companion `waf_monitoring` module. This module focuses purely on WAF rules.
 
 ## Architecture
 
@@ -41,11 +42,12 @@ This module supports creating:
                     │  │ P80  Known Bad Inputs       │  │
                     │  │ P90  Bot Control ($)        │  │
                     │  └────────────────────────────┘  │
-                    └───────────────┬─────────────────┘
-                                    │
-                    ┌───────────────▼─────────────────┐
-                    │    CloudWatch Log Group          │
-                    │    aws-waf-logs-{app}-{scope}    │
+                    └─────────────────────────────────┘
+                              │ web_acl_arn
+                    ┌─────────▼───────────────────────┐
+                    │      waf_monitoring module       │
+                    │  CW Log Group + S3 + SNS Alerts  │
+                    │  CW Alarms + Dashboard           │
                     └─────────────────────────────────┘
 ```
 
@@ -53,17 +55,21 @@ This module supports creating:
 
 Choose a `service_type` and the module auto-enables the right rules. Set any `enable_*` variable explicitly to override.
 
-| Rule                 | CLOUDFRONT | ALB    | API_GATEWAY | APPSYNC | COGNITO | APP_RUNNER | CUSTOM |
-| -------------------- | ---------- | ------ | ----------- | ------- | ------- | ---------- | ------ |
-| IP Reputation        | always     | always | always      | always  | always  | always     | always |
-| Rate Limit (default) | 5000       | 2000   | 1000        | 1000    | 500     | 2000       | 2000   |
-| CRS / OWASP Top 10   | always     | always | always      | always  | always  | always     | always |
-| Anonymous IP List    | **on**     | off    | off         | off     | **on**  | off        | off    |
-| Body Size            | off        | **on** | **on**      | off     | off     | **on**     | off    |
-| SQL Injection        | off        | **on** | **on**      | **on**  | off     | **on**     | off    |
-| Known Bad Inputs     | **on**     | **on** | **on**      | **on**  | off     | **on**     | off    |
-| Bot Control ($)      | off        | off    | off         | off     | **on**  | off        | off    |
+| Rule                 | CLOUDFRONT     | ALB            | API_GATEWAY    | APPSYNC        | COGNITO        | APP_RUNNER     | CUSTOM         |
+| -------------------- | -------------- | -------------- | -------------- | -------------- | -------------- | -------------- | -------------- |
+| IP Reputation        | always         | always         | always         | always         | always         | always         | always         |
+| Rate Limit (default) | 5000           | 2000           | 1000           | 1000           | 500            | 2000           | 2000           |
+| CRS / OWASP Top 10   | always         | always         | always         | always         | always         | always         | always         |
+| IP Allowlist †       | off (disabled) | off (disabled) | off (disabled) | off (disabled) | off (disabled) | off (disabled) | off (disabled) |
+| Geo-blocking †       | off (disabled) | off (disabled) | off (disabled) | off (disabled) | off (disabled) | off (disabled) | off (disabled) |
+| Anonymous IP List    | **on**         | off            | off            | off            | **on**         | off            | off            |
+| Body Size            | off            | **on**         | **on**         | off            | off            | **on**         | off            |
+| SQL Injection        | off            | **on**         | **on**         | **on**         | off            | **on**         | off            |
+| Known Bad Inputs     | **on**         | **on**         | **on**         | **on**         | off            | **on**         | off            |
+| Bot Control ($)      | off            | off            | off            | off            | **on**         | off            | off            |
 
+> **†** IP Allowlist and Geo-blocking are **always disabled by default** across all service types — they have no preset logic and must be explicitly enabled via `enable_ip_allowlist = true` or `enable_geo_block = true`.
+>
 > **Note:** Bot Control incurs additional AWS cost (~$10/month + per-request fee).
 
 ## Usage
@@ -438,6 +444,117 @@ module "waf_alb" {
 }
 ```
 
+## Advanced: Rule Action Overrides (Fine-Grained Sub-Rule Control)
+
+For complex deployments, you may want a managed rule group in `"block"` mode overall, but specific sub-rules in `"count"` mode to reduce false positives. The `sqli_count_override_rules` variable enables this surgical control for SQL Injection detection.
+
+### When to Use Rule Action Overrides
+
+SQL Injection detection has different false positive rates depending on **where** the attack pattern is found:
+
+| Location       | Attack Surface                        | False Positive Rate | Recommendation            |
+| -------------- | ------------------------------------- | ------------------- | ------------------------- |
+| **Body**       | Form data, JSON                       | Low (~1%)           | **BLOCK**                 |
+| **Cookies**    | Session params                        | Low (~1%)           | **BLOCK**                 |
+| **Headers**    | Content-Type                          | Low (~2%)           | **BLOCK**                 |
+| **Query Args** | Product IDs, search terms, pagination | High (~80%)         | **COUNT** (if e-commerce) |
+
+In e-commerce applications, query arguments frequently contain legitimate numbers (like product IDs or page numbers) that can trigger SQLi patterns. Blocking these causes customer friction. By overriding specific sub-rules to `"count"` mode, you allow legitimate queries through while still blocking true attacks in more dangerous locations.
+
+### Available SQLi Sub-Rules
+
+The `AWSManagedRulesSQLiRuleSet` contains several sub-rules that can be individually overridden:
+
+- `SQLi_BODY` — SQL injection in request body (forms, JSON)
+- `SQLi_COOKIE` — SQL injection in cookies (session hijacking)
+- `SQLi_QUERYARGUMENTS` — **Most false positives** for e-commerce
+- `SQLi_HEADERS` — SQL injection in HTTP headers
+- `SQLiExtendedPatterns_BODY` — Extended/obfuscated SQLi patterns in body
+- `SQLiExtendedPatterns_QUERYARGUMENTS` — **High false positives** for e-commerce
+- `SQLiExtendedPatterns_HEADERS` — Extended SQLi patterns in headers
+
+### Real-World Example: Welfan E-Commerce
+
+A real WAF analysis on Welfan's e-commerce traffic (3-day sample) revealed:
+
+- **26 SQL Injection hits detected** in query arguments
+- **All 26 hits from one legitimate customer IP** (`153.142.29.193`)
+- **All hits on legitimate product pages** (e.g., `/product.aspx?id=5247682`, `/search.aspx?q=printer+cartridge`)
+- **0 SQLi hits in body/cookies** (true attack surface)
+
+**Classification:**
+
+- 25 hits on `SQLi_QUERYARGUMENTS` (false positive)
+- 1 hit on `SQLiExtendedPatterns_QUERYARGUMENTS` (false positive)
+- These product IDs and search terms don't indicate a security risk; typical e-commerce data
+
+**Decision:** Block SQLi overall (`sql_injection_action_mode = "block"`), but override query argument sub-rules to `"count"` mode. This lets the legitimate customer browse freely while still blocking:
+
+- Actual SQLi injection attempts in request body (form data)
+- Session hijacking attempts via cookie injection
+- Header-based injection attacks
+
+### Configuration: sqli_count_override_rules
+
+```terraform
+module "waf_alb" {
+  source       = "../../modules/waf_standard"
+  app_name     = "${var.environment}-store"
+  scope        = "REGIONAL"
+  service_type = "ALB"
+
+  # SQLi rule enforces overall, but with targeted sub-rule overrides
+  sql_injection_action_mode = "block"
+
+  # Override: Count (don't block) SQLi in query arguments to reduce false positives
+  # These sub-rule names are from AWSManagedRulesSQLiRuleSet
+  sqli_count_override_rules = [
+    "SQLi_QUERYARGUMENTS",
+    "SQLiExtendedPatterns_QUERYARGUMENTS",
+  ]
+
+  # All other action modes
+  ip_reputation_action_mode    = "block"
+  rate_limit_action_mode       = "block"
+  crs_action_mode              = "block"
+  body_size_action_mode        = "count"
+  known_bad_inputs_action_mode = "count"
+
+  tags = local.tags
+}
+```
+
+**How it works:**
+
+- Requests with SQLi patterns in **body/cookie/headers** → **BLOCKED** (action = block)
+- Requests with SQLi patterns in **query arguments** → **COUNTED, NOT BLOCKED** (action = count)
+- CloudWatch alarms trigger only on blocked requests (body/cookies), not the false positives
+
+### Monitoring Rule Action Overrides
+
+After deploying with `sqli_count_override_rules`, check CloudWatch:
+
+1. **SQL Injection – Blocked** alarm (on BlockedRequests metric)
+   - True positives: rare (real SQLi attempts are usually in body/cookies)
+   - Adjust further if blocked query arg patterns appear
+
+2. **SQL Injection – Counted** alarm (on CountedRequests metric)
+   - High activity: expected (legitimate product IDs, search terms)
+   - Review logs if you see suspicious patterns outside known query params
+
+### Migration Path
+
+```
+Phase 1: sql_injection_action_mode = "count"
+         └─ Baseline: capture all SQLi hits
+
+Phase 2: sql_injection_action_mode = "block" + sqli_count_override_rules = ["SQLi_QUERYARGUMENTS", "SQLiExtendedPatterns_QUERYARGUMENTS"]
+         └─ Production: block true SQLi, allow legitimate query args
+
+Phase 3 (optional): Remove overrides → sql_injection_action_mode = "block" + sqli_count_override_rules = []
+                    └─ Strict mode: block all SQLi (for non-user-input query params)
+```
+
 ## Rule Priority Map
 
 | Priority | Rule                         | Type               | Status    | Default Action |
@@ -486,7 +603,6 @@ module "waf" {
 | scope                           | WAF scope: `CLOUDFRONT` or `REGIONAL`                        | `string`       | n/a        |   yes    |
 | service_type                    | Target service preset (see Presets table)                    | `string`       | `"CUSTOM"` |    no    |
 | rate_limit_override             | Override preset rate limit (requests/5min/IP). null = preset | `number`       | `null`     |    no    |
-| log_retention                   | CloudWatch log retention in days                             | `number`       | `7`        |    no    |
 | **Action Mode Variables**       |                                                              |                |            |          |
 | ip_reputation_action_mode       | IP Reputation (P1): `"block"` or `"count"`                   | `string`       | `"block"`  |    no    |
 | rate_limit_action_mode          | Rate Limit (P50): `"block"` or `"count"`                     | `string`       | `"block"`  |    no    |
@@ -497,6 +613,8 @@ module "waf" {
 | sql_injection_action_mode       | SQL Injection (P70): `"block"` or `"count"`                  | `string`       | `"count"`  |    no    |
 | known_bad_inputs_action_mode    | Known Bad Inputs (P80): `"block"` or `"count"`               | `string`       | `"count"`  |    no    |
 | bot_control_action_mode         | Bot Control (P90): `"block"` or `"count"`                    | `string`       | `"count"`  |    no    |
+| **Advanced Rule Tuning**        |                                                              |                |            |          |
+| sqli_count_override_rules       | SQLi sub-rules to override to COUNT (reduce false positives) | `list(string)` | `[]`       |    no    |
 | **Rule Enable/Disable**         |                                                              |                |            |          |
 | enable_ip_allowlist             | Enable IP allowlist rule                                     | `bool`         | `false`    |    no    |
 | allowed_ip_addresses            | IPv4 CIDRs to allowlist                                      | `list(string)` | `[]`       |    no    |
@@ -513,15 +631,16 @@ module "waf" {
 
 ## Outputs
 
-| Name                 | Description                                            |
-| -------------------- | ------------------------------------------------------ |
-| web_acl_arn          | ARN of the WAF Web ACL                                 |
-| web_acl_id           | ID of the WAF Web ACL (for CloudFront `web_acl_id`)    |
-| waf_arn              | ARN alias (for `aws_wafv2_web_acl_association`)        |
-| log_group_name       | CloudWatch log group name for WAF logs                 |
-| ip_set_arn           | ARN of IP allowlist set (empty string when disabled)   |
-| service_type         | The service_type preset used                           |
-| effective_rate_limit | Resolved rate limit (after preset/override resolution) |
+| Name                 | Description                                                                                     |
+| -------------------- | ----------------------------------------------------------------------------------------------- |
+| web_acl_arn          | ARN of the WAF Web ACL                                                                          |
+| web_acl_id           | ID of the WAF Web ACL (for CloudFront `web_acl_id`)                                             |
+| waf_arn              | ARN alias (for `aws_wafv2_web_acl_association`)                                                 |
+| ip_set_arn           | ARN of IP allowlist set (empty string when disabled)                                            |
+| service_type         | The service_type preset used                                                                    |
+| effective_rate_limit | Resolved rate limit (after preset/override resolution)                                          |
+| web_acl_metric_name  | CloudWatch metric name for use in monitoring                                                    |
+| active_rules         | Map of rule key → `{metric_name, action_mode}` for all enabled rules (pass to `waf_monitoring`) |
 
 ## AWS Managed Rules Reference
 
@@ -548,4 +667,4 @@ module "waf" {
 3. **Bot Control** has additional AWS costs (~$10/month + $1/million requests). Only enabled by default in `COGNITO` preset.
 4. **Rate Limit** is evaluated per IP over a 5-minute sliding window.
 5. **CRS SizeRestrictions_BODY** is overridden to `allow` by default to support file uploads. Remove the override in `main.tf` if you want strict body size enforcement via CRS.
-6. **WAF Logs** are written to CloudWatch with the required `aws-waf-logs-` prefix.
+6. **Logging & Monitoring** are handled by the separate `waf_monitoring` module. Pass `web_acl_arn` from this module to `waf_monitoring` to connect them.

@@ -46,11 +46,7 @@ variable "rate_limit_override" {
   default     = null
 }
 
-variable "log_retention" {
-  description = "Number of days to retain WAF logs in the CloudWatch log group."
-  type        = number
-  default     = 7
-}
+
 
 # ---------------------------------------------------------------------------
 # Rule Action Modes: "block" vs "count" (per-rule toggle)
@@ -135,6 +131,34 @@ variable "sql_injection_action_mode" {
   validation {
     condition     = contains(["block", "count"], var.sql_injection_action_mode)
     error_message = "Must be 'block' or 'count'."
+  }
+}
+
+variable "sqli_rule_action_overrides" {
+  description = <<-EOT
+    Per-sub-rule action overrides for AWSManagedRulesSQLiRuleSet.
+    Map of sub-rule name => action ("count", "allow", or "block").
+    Example: { SQLi_COOKIE = "count", SQLi_QUERYARGUMENTS = "count" }
+  EOT
+  type        = map(string)
+  default     = {}
+  validation {
+    condition     = alltrue([for v in values(var.sqli_rule_action_overrides) : contains(["count", "allow", "block"], v)])
+    error_message = "Each override action must be one of: count, allow, block."
+  }
+}
+
+variable "crs_rule_action_overrides" {
+  description = <<-EOT
+    Per-sub-rule action overrides for AWSManagedRulesCommonRuleSet.
+    Map of sub-rule name => action ("count", "allow", or "block").
+    Example: { SizeRestrictions_BODY = "allow", NoUserAgent_HEADER = "count" }
+  EOT
+  type        = map(string)
+  default     = {}
+  validation {
+    condition     = alltrue([for v in values(var.crs_rule_action_overrides) : contains(["count", "allow", "block"], v)])
+    error_message = "Each override action must be one of: count, allow, block."
   }
 }
 

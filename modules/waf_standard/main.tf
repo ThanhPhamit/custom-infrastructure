@@ -48,6 +48,18 @@ resource "aws_wafv2_web_acl" "this" {
       managed_rule_group_statement {
         name        = "AWSManagedRulesAmazonIpReputationList"
         vendor_name = "AWS"
+
+        # AWSManagedIPDDoSList defaults to COUNT in AWS's managed rule group.
+        # Override to BLOCK when ip_reputation_action_mode = "block".
+        dynamic "rule_action_override" {
+          for_each = var.ip_reputation_action_mode == "block" ? [1] : []
+          content {
+            name = "AWSManagedIPDDoSList"
+            action_to_use {
+              block {}
+            }
+          }
+        }
       }
     }
 
@@ -115,11 +127,24 @@ resource "aws_wafv2_web_acl" "this" {
         name        = "AWSManagedRulesCommonRuleSet"
         vendor_name = "AWS"
 
-        # Allow large request bodies (e.g. file uploads); remove if not needed
-        rule_action_override {
-          name = "SizeRestrictions_BODY"
-          action_to_use {
-            allow {}
+        dynamic "rule_action_override" {
+          for_each = var.crs_rule_action_overrides
+          content {
+            name = rule_action_override.key
+            action_to_use {
+              dynamic "count" {
+                for_each = rule_action_override.value == "count" ? [1] : []
+                content {}
+              }
+              dynamic "allow" {
+                for_each = rule_action_override.value == "allow" ? [1] : []
+                content {}
+              }
+              dynamic "block" {
+                for_each = rule_action_override.value == "block" ? [1] : []
+                content {}
+              }
+            }
           }
         }
       }
@@ -302,6 +327,27 @@ resource "aws_wafv2_web_acl" "this" {
         managed_rule_group_statement {
           name        = "AWSManagedRulesSQLiRuleSet"
           vendor_name = "AWS"
+
+          dynamic "rule_action_override" {
+            for_each = var.sqli_rule_action_overrides
+            content {
+              name = rule_action_override.key
+              action_to_use {
+                dynamic "count" {
+                  for_each = rule_action_override.value == "count" ? [1] : []
+                  content {}
+                }
+                dynamic "allow" {
+                  for_each = rule_action_override.value == "allow" ? [1] : []
+                  content {}
+                }
+                dynamic "block" {
+                  for_each = rule_action_override.value == "block" ? [1] : []
+                  content {}
+                }
+              }
+            }
+          }
         }
       }
 
@@ -400,27 +446,3 @@ resource "aws_wafv2_web_acl" "this" {
   }
 }
 
-# ---------------------------------------------------------------------------
-# Logging
-# ---------------------------------------------------------------------------
-
-# Log Group name MUST start with 'aws-waf-logs-'
-resource "aws_cloudwatch_log_group" "waf_logs" {
-  name              = "aws-waf-logs-${var.app_name}-${lower(var.scope)}"
-  retention_in_days = var.log_retention
-
-  tags = merge({ Name = "${var.app_name}-waf-logs" }, var.tags)
-}
-
-# Resource policy – allows WAF service principal to write to CloudWatch
-resource "aws_cloudwatch_log_resource_policy" "waf_logging_policy" {
-  policy_document = data.aws_iam_policy_document.waf_logging_policy.json
-  policy_name     = "aws-waf-logs-${var.app_name}-${lower(var.scope)}"
-}
-
-resource "aws_wafv2_web_acl_logging_configuration" "main" {
-  log_destination_configs = [aws_cloudwatch_log_group.waf_logs.arn]
-  resource_arn            = aws_wafv2_web_acl.this.arn
-
-  depends_on = [aws_cloudwatch_log_resource_policy.waf_logging_policy]
-}
