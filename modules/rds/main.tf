@@ -9,34 +9,83 @@ locals {
   # Replica instance class defaults to primary
   replica_instance_class = var.replica_instance_class != null ? var.replica_instance_class : var.instance_class
 
-  # Default PostgreSQL parameters for monitoring
-  default_postgres_parameters = var.engine == "postgres" ? [
-    {
-      name         = "shared_preload_libraries"
-      value        = "pg_stat_statements"
-      apply_method = "pending-reboot"
-    },
-    {
-      name         = "pg_stat_statements.track"
-      value        = "all"
-      apply_method = "pending-reboot"
-    },
-    {
-      name         = "pg_stat_statements.max"
-      value        = "10000"
-      apply_method = "pending-reboot"
-    },
-    {
-      name         = "track_activity_query_size"
-      value        = "2048"
-      apply_method = "pending-reboot"
-    },
-    {
-      name         = "client_encoding"
-      value        = "UTF8"
-      apply_method = "pending-reboot"
-    }
-  ] : []
+  # Default PostgreSQL parameters for monitoring and performance troubleshooting.
+  default_postgres_parameters = var.engine == "postgres" ? concat(
+    [
+      {
+        name         = "shared_preload_libraries"
+        value        = "pg_stat_statements"
+        apply_method = "pending-reboot"
+      },
+      {
+        # "top" tracks only top-level statements — lower overhead than "all" for production.
+        # Use custom_parameters to override to "all" when deep query debugging is needed.
+        name         = "pg_stat_statements.track"
+        value        = "top"
+        apply_method = "pending-reboot"
+      },
+      {
+        name         = "pg_stat_statements.max"
+        value        = "10000"
+        apply_method = "pending-reboot"
+      },
+      {
+        # 4096 prevents truncation of long JOIN/CTE queries in pg_stat_activity.
+        name         = "track_activity_query_size"
+        value        = "4096"
+        apply_method = "pending-reboot"
+      },
+      {
+        name         = "client_encoding"
+        value        = "UTF8"
+        apply_method = "pending-reboot"
+      },
+      {
+        # Force SSL for all client connections — required for PII/healthcare data.
+        name         = "rds.force_ssl"
+        value        = "1"
+        apply_method = "pending-reboot"
+      },
+      {
+        # Kill transactions idle-in-transaction to prevent lock pile-ups from crashed clients.
+        name         = "idle_in_transaction_session_timeout"
+        value        = tostring(var.idle_in_transaction_session_timeout_ms)
+        apply_method = "immediate"
+      },
+      {
+        name         = "log_checkpoints"
+        value        = "1"
+        apply_method = "immediate"
+      },
+    ],
+    var.enable_track_io_timing ? [
+      {
+        name         = "track_io_timing"
+        value        = "1"
+        apply_method = "immediate"
+      }
+    ] : [],
+    var.enable_log_lock_waits ? [
+      {
+        name         = "log_lock_waits"
+        value        = "1"
+        apply_method = "immediate"
+      }
+    ] : [],
+    var.enable_slow_query_log ? [
+      {
+        name         = "log_min_duration_statement"
+        value        = tostring(var.slow_query_log_min_duration_ms)
+        apply_method = "immediate"
+      }
+      ] : [
+      {
+        name         = "log_min_duration_statement"
+        value        = "-1"
+        apply_method = "immediate"
+      }
+    ]
+  ) : []
 
   # Merge default and custom parameters
   all_parameters = concat(local.default_postgres_parameters, var.custom_parameters)
@@ -186,6 +235,23 @@ module "rds_monitoring_role" {
 }
 
 #--------------------------------------------------------------
+# CloudWatch Log Groups for RDS Exported Logs
+#--------------------------------------------------------------
+resource "aws_cloudwatch_log_group" "rds_exports" {
+  for_each = toset(var.enabled_cloudwatch_logs_exports)
+
+  name              = "/aws/rds/instance/${var.db_name}/${each.value}"
+  retention_in_days = var.cloudwatch_log_retention_in_days
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "/aws/rds/instance/${var.db_name}/${each.value}"
+    }
+  )
+}
+
+#--------------------------------------------------------------
 # Primary RDS Instance
 #--------------------------------------------------------------
 resource "aws_db_instance" "primary" {
@@ -240,6 +306,8 @@ resource "aws_db_instance" "primary" {
   enabled_cloudwatch_logs_exports       = var.enabled_cloudwatch_logs_exports
 
   apply_immediately = false
+
+  depends_on = [aws_cloudwatch_log_group.rds_exports]
 
   tags = merge(
     var.tags,

@@ -69,6 +69,17 @@ variable "repository_arn" {
   description = "The ARN of the ECR repository"
 }
 
+variable "cloudwatch_log_retention_in_days" {
+  type        = number
+  description = "Number of days to retain ECS CloudWatch logs"
+  default     = 30
+
+  validation {
+    condition     = var.cloudwatch_log_retention_in_days >= 1 && var.cloudwatch_log_retention_in_days <= 3653
+    error_message = "cloudwatch_log_retention_in_days must be between 1 and 3653 days."
+  }
+}
+
 variable "tags" {
   type        = map(string)
   description = "Tags to apply to resources"

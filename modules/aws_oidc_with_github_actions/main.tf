@@ -72,13 +72,19 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     resources = ["*"]
   }
 
-  statement {
-    actions   = ["iam:PassRole"]
-    resources = var.passrole_target_role_arns
-    condition {
-      test     = "StringEquals"
-      variable = "iam:PassedToService"
-      values   = ["ecs-tasks.amazonaws.com"]
+  # PassRole only when the caller actually needs it (e.g., ECS task role).
+  # An empty resources list would make IAM reject the whole policy with
+  # "Policy statement must contain resources", so we skip the statement.
+  dynamic "statement" {
+    for_each = length(var.passrole_target_role_arns) > 0 ? [1] : []
+    content {
+      actions   = ["iam:PassRole"]
+      resources = var.passrole_target_role_arns
+      condition {
+        test     = "StringEquals"
+        variable = "iam:PassedToService"
+        values   = ["ecs-tasks.amazonaws.com"]
+      }
     }
   }
 }

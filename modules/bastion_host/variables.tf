@@ -69,3 +69,14 @@ variable "scheduler_stop_cron" {
   type        = string
   default     = "cron(0 12 ? * MON-FRI *)" # 12:00 UTC = 7:00 PM GMT+7
 }
+
+variable "scheduler_log_retention_in_days" {
+  description = "Number of days to retain scheduler Lambda CloudWatch logs"
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.scheduler_log_retention_in_days >= 1 && var.scheduler_log_retention_in_days <= 3653
+    error_message = "scheduler_log_retention_in_days must be between 1 and 3653 days."
+  }
+}

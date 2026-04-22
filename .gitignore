@@ -160,3 +160,24 @@ terraform.rc
 
 # Ignore all layer.zip files
 *.zip
+
+# Claude Code — local MCP config (contains tokens / profile info)
+.mcp.json
+
+# All .claude files (contains tokens / profile info)
+.claude
+
+# Runtime exports from `environments/tokyo-dev-single/SETUP-CLI-EN.md` (contains runtime secrets)
+runtime-exports.generated.sh
+
+# Ignore .env files anywhere in the repo — they contain runtime secrets
+# (DB passwords, JWT keys, SMTP creds, payment gateway keys, etc.).
+# Templates used as references should keep the `.tpl` / `.example` suffix.
+.env
+.env.*
+!.env.tpl
+!.env.example
+**/.env
+**/.env.*
+!**/.env.tpl
+!**/.env.example

@@ -137,11 +137,12 @@ module "scheduler_lambda" {
 
   count = var.enable_scheduler ? 1 : 0
 
-  function_name = "${var.app_name}-bastion-scheduler"
-  description   = "Lambda function to start/stop bastion host based on schedule"
-  handler       = "index.lambda_handler"
-  runtime       = "python3.12"
-  timeout       = 60
+  function_name                     = "${var.app_name}-bastion-scheduler"
+  description                       = "Lambda function to start/stop bastion host based on schedule"
+  handler                           = "index.lambda_handler"
+  runtime                           = "python3.12"
+  timeout                           = 60
+  cloudwatch_logs_retention_in_days = var.scheduler_log_retention_in_days
 
   # Python source directory
   source_path = "${path.module}/scheduler-lambda-function"

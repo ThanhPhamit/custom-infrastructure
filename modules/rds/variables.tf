@@ -243,6 +243,17 @@ variable "enabled_cloudwatch_logs_exports" {
   default     = ["postgresql", "upgrade"]
 }
 
+variable "cloudwatch_log_retention_in_days" {
+  type        = number
+  description = "Number of days to retain exported RDS CloudWatch logs"
+  default     = 30
+
+  validation {
+    condition     = var.cloudwatch_log_retention_in_days >= 1 && var.cloudwatch_log_retention_in_days <= 3653
+    error_message = "cloudwatch_log_retention_in_days must be between 1 and 3653 days."
+  }
+}
+
 #--------------------------------------------------------------
 # Variables - Parameter Group
 #--------------------------------------------------------------
@@ -271,6 +282,46 @@ variable "custom_parameters" {
   }))
   description = "Custom parameters for the parameter group"
   default     = []
+}
+
+variable "enable_slow_query_log" {
+  type        = bool
+  description = "Enable PostgreSQL slow query logging via log_min_duration_statement"
+  default     = true
+}
+
+variable "slow_query_log_min_duration_ms" {
+  type        = number
+  description = "PostgreSQL slow query threshold in milliseconds for log_min_duration_statement"
+  default     = 500
+
+  validation {
+    condition     = var.slow_query_log_min_duration_ms >= 0 && var.slow_query_log_min_duration_ms <= 600000
+    error_message = "slow_query_log_min_duration_ms must be between 0 and 600000 milliseconds."
+  }
+}
+
+variable "enable_log_lock_waits" {
+  type        = bool
+  description = "Enable PostgreSQL lock wait logging"
+  default     = true
+}
+
+variable "enable_track_io_timing" {
+  type        = bool
+  description = "Enable PostgreSQL track_io_timing for query performance analysis"
+  default     = true
+}
+
+variable "idle_in_transaction_session_timeout_ms" {
+  type        = number
+  description = "Terminate sessions idle in transaction longer than this threshold (ms). Prevents lock pile-ups from crashed clients. 0 to disable."
+  default     = 30000
+
+  validation {
+    condition     = var.idle_in_transaction_session_timeout_ms >= 0
+    error_message = "idle_in_transaction_session_timeout_ms must be 0 (disabled) or a positive number of milliseconds."
+  }
 }
 
 #--------------------------------------------------------------

@@ -93,8 +93,9 @@ resource "aws_ecs_task_definition" "task_definition" {
 }
 
 resource "aws_cloudwatch_log_group" "log" {
-  count = length(var.container_names)
-  name  = "/ecs_server/${var.app_name}/${var.container_names[count.index]}"
+  count             = length(var.container_names)
+  name              = "/ecs_server/${var.app_name}/${var.container_names[count.index]}"
+  retention_in_days = var.cloudwatch_log_retention_in_days
   tags = merge(
     var.tags,
     {
