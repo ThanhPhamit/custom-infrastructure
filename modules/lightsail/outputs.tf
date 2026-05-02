@@ -61,6 +61,6 @@ Host ${var.app_name}-server
     HostName ${aws_lightsail_static_ip.this.ip_address}
     User ubuntu
     IdentitiesOnly yes
-    IdentityFile ~/.ssh/${var.key_pair_name != null ? "${var.app_name}-${var.key_pair_name}" : "id_rsa"}.pem
+    IdentityFile ~/.ssh/${var.key_pair_name != null ? var.key_pair_name : "id_rsa"}
 EOT
 }
