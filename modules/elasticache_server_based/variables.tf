@@ -102,6 +102,35 @@ variable "enable_cache_nodes_lookup" {
   default     = false
 }
 
+variable "enable_log_delivery" {
+  description = "If true, ship Redis/Valkey engine-log + slow-log to CloudWatch Logs. Required for ElastiCache versions 6.x+ (engine-log) / 6.0+ (slow-log)."
+  type        = bool
+  default     = false
+}
+
+variable "log_format" {
+  description = "Format for CloudWatch Logs delivery. Either 'json' (structured, easier to query) or 'text' (smaller ingest volume)."
+  type        = string
+  default     = "json"
+
+  validation {
+    condition     = contains(["json", "text"], var.log_format)
+    error_message = "log_format must be either 'json' or 'text'."
+  }
+}
+
+variable "log_retention_in_days" {
+  description = "CloudWatch Logs retention applied to engine-log and slow-log groups."
+  type        = number
+  default     = 14
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 180, 365], var.log_retention_in_days)
+    error_message = "log_retention_in_days must be a valid CloudWatch retention value."
+  }
+}
+
+
 variable "tags" {
   type        = map(string)
   description = "Tags to apply to resources"

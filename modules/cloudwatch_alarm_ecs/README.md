@@ -68,8 +68,21 @@ module "cloudwatch_alarm_ecs" {
 
   # Log monitoring
   ecs_cloudwatch_log_group_name  = module.ecs_api.ecs_cloudwatch_log_group_name
-  cw_alarm_ecs_log_error_pattern = "?ERROR ?error ?CRITICAL ?Exception ?Traceback"
 
+  # Per-pattern filters (CloudWatch metric-filter `?` + `-` mixing has a parser
+  # quirk; see modules/cloudwatch_alarm_ecs/variables.tf for the long story).
+  cw_alarm_ecs_log_error_patterns = [
+    "ERROR -\"errorMsg\"",
+    "Error -\"errorMsg\"",
+    "Exception -\"errorMsg\"",
+    "EXCEPTION -\"errorMsg\"",
+    "CRITICAL -\"errorMsg\"",
+    "Critical -\"errorMsg\"",
+    "Traceback -\"errorMsg\"",
+    "InternalServerErrorException -\"errorMsg\"",
+    "\"Error:\" -\"errorMsg\"",
+    "\"❌\" -\"errorMsg\"",
+  ]
   tags = {
     Environment = "production"
     Terraform   = "true"
@@ -128,7 +141,21 @@ module "cloudwatch_alarm_ecs" {
 
   # Log error detection
   ecs_cloudwatch_log_group_name  = module.ecs_nest.ecs_cloudwatch_log_group_name
-  cw_alarm_ecs_log_error_pattern = "?InternalServerErrorException ?ERROR ?error ?CRITICAL ?Exception ?Traceback ?\"❌\""
+
+  # Per-pattern filters (CloudWatch metric-filter `?` + `-` mixing has a parser
+  # quirk; see modules/cloudwatch_alarm_ecs/variables.tf for the long story).
+  cw_alarm_ecs_log_error_patterns = [
+    "ERROR -\"errorMsg\"",
+    "Error -\"errorMsg\"",
+    "Exception -\"errorMsg\"",
+    "EXCEPTION -\"errorMsg\"",
+    "CRITICAL -\"errorMsg\"",
+    "Critical -\"errorMsg\"",
+    "Traceback -\"errorMsg\"",
+    "InternalServerErrorException -\"errorMsg\"",
+    "\"Error:\" -\"errorMsg\"",
+    "\"❌\" -\"errorMsg\"",
+  ]
 
   tags = {
     Environment = "staging"

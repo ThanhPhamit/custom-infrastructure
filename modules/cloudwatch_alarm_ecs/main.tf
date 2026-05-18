@@ -287,10 +287,24 @@ resource "aws_cloudwatch_composite_alarm" "lb_healthy_count_combined" {
   )
 }
 
-# Create a metric filter to detect errors in ECS logs
+# Legacy log-error metric filter + alarm. Skipped when Portal owns enrichment
+# (Portal recreates an equivalent alarm routed through the enricher Lambda).
+#
+# One filter per pattern. All filters emit the SAME metric so CloudWatch
+# aggregates via Sum and a single alarm covers the combined count.
+locals {
+  log_error_filter_specs = var.create_log_error_alarm ? {
+    for idx, pattern in var.cw_alarm_ecs_log_error_patterns :
+    tostring(idx) => pattern
+  } : {}
+}
+
 resource "aws_cloudwatch_log_metric_filter" "ecs_service_log_errors" {
-  name           = "${var.app_name}-ecs-service-log-errors"
-  pattern        = var.cw_alarm_ecs_log_error_pattern
+  for_each = local.log_error_filter_specs
+
+  # Suffix -N keeps names stable across plans even when patterns are reordered.
+  name           = "${var.app_name}-ecs-service-log-errors-${each.key}"
+  pattern        = each.value
   log_group_name = var.ecs_cloudwatch_log_group_name
 
   metric_transformation {
@@ -302,8 +316,9 @@ resource "aws_cloudwatch_log_metric_filter" "ecs_service_log_errors" {
   }
 }
 
-# Create alarm based on the log error metric
 resource "aws_cloudwatch_metric_alarm" "ecs_service_log_errors_alarm" {
+  count = var.create_log_error_alarm ? 1 : 0
+
   alarm_name          = "${var.app_name}-ecs-service-log-errors"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = var.cw_alarm_log_error_evaluation_periods

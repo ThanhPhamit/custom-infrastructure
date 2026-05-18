@@ -12,6 +12,7 @@ This module supports creating:
 - **Parameter Group** - Custom Redis/Valkey parameters
 - **Automatic Failover** - Multi-AZ support
 - **Encryption** - In-transit and at-rest encryption
+- **Log Delivery** - Ship `engine-log` and `slow-log` to CloudWatch Logs
 
 ## Usage
 
@@ -143,6 +144,42 @@ module "cloudwatch_alarm_elasticache" {
 }
 ```
 
+### Example 5: Enable CloudWatch Log Delivery
+
+Ships both `engine-log` and `slow-log` to CloudWatch Logs. Log groups are
+created and managed by this module under
+`/aws/elasticache/<app_name>/{engine-log,slow-log}`.
+
+```terraform
+module "elasticache" {
+  source = "../../modules/elasticache_server_based"
+
+  app_name = "${var.environment}-${var.app_name}"
+  vpc_id   = module.network.vpc_id
+
+  elasticache_subnet_group_name = module.network.elasticache_subnet_group_name
+
+  engine                = "valkey"
+  engine_version        = "8.0"
+  node_type             = "cache.t3.micro"
+  parameter_group_name  = "default.valkey8"
+  number_cache_clusters = 1
+
+  # Log delivery
+  enable_log_delivery   = true
+  log_format            = "json"  # or "text" for cheaper ingest
+  log_retention_in_days = 14
+
+  tags = local.tags
+}
+```
+
+> **Engine version requirements**
+> - `slow-log` requires Redis ≥ 6.0 or Valkey
+> - `engine-log` requires Redis ≥ 6.2 or Valkey
+>
+> Enabling `enable_log_delivery` on older engine versions will fail at apply.
+
 ## Engine Options
 
 | Engine | Version | Description                |
@@ -212,6 +249,9 @@ r = redis.Redis(
 | transit_encryption_enabled    | Enable in-transit encryption         | `bool`         | `false`                 |    no    |
 | at_rest_encryption_enabled    | Enable at-rest encryption            | `bool`         | `false`                 |    no    |
 | enable_cache_nodes_lookup     | Enable cache nodes lookup for alarms | `bool`         | `false`                 |    no    |
+| enable_log_delivery           | Ship engine-log + slow-log to CloudWatch Logs | `bool` | `false`              |    no    |
+| log_format                    | Log delivery format (`json` or `text`) | `string`     | `"json"`                |    no    |
+| log_retention_in_days         | CloudWatch Logs retention for log groups | `number`   | `14`                    |    no    |
 | apply_immediately             | Apply changes immediately            | `bool`         | `true`                  |    no    |
 | allowed_security_groups       | Additional security groups           | `list(string)` | `[]`                    |    no    |
 | tags                          | Tags to apply to resources           | `map(string)`  | `{}`                    |    no    |

@@ -49,6 +49,34 @@ resource "aws_elasticache_subnet_group" "elasticache_subnet_group" {
   )
 }
 
+resource "aws_cloudwatch_log_group" "engine_log" {
+  count = var.enable_log_delivery ? 1 : 0
+
+  name              = "/aws/elasticache/${var.app_name}/engine-log"
+  retention_in_days = var.log_retention_in_days
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.app_name}-elasticache-engine-log"
+    }
+  )
+}
+
+resource "aws_cloudwatch_log_group" "slow_log" {
+  count = var.enable_log_delivery ? 1 : 0
+
+  name              = "/aws/elasticache/${var.app_name}/slow-log"
+  retention_in_days = var.log_retention_in_days
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.app_name}-elasticache-slow-log"
+    }
+  )
+}
+
 #--------------------------------------------------------------
 # ElastiCache Replication Group
 #--------------------------------------------------------------
@@ -78,6 +106,18 @@ resource "aws_elasticache_replication_group" "redis" {
 
   apply_immediately = var.apply_immediately
 
+  dynamic "log_delivery_configuration" {
+    for_each = var.enable_log_delivery ? {
+      "engine-log" = aws_cloudwatch_log_group.engine_log[0].name
+      "slow-log"   = aws_cloudwatch_log_group.slow_log[0].name
+    } : {}
+    content {
+      destination      = log_delivery_configuration.value
+      destination_type = "cloudwatch-logs"
+      log_format       = var.log_format
+      log_type         = log_delivery_configuration.key
+    }
+  }
 
   tags = merge(
     var.tags,

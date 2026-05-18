@@ -76,9 +76,27 @@ variable "cw_alarm_log_error_evaluation_periods" {
   default     = 1
 }
 
-variable "cw_alarm_ecs_log_error_pattern" {
-  description = "Pattern to match in CloudWatch ecs logs for error detection"
-  type        = string
+variable "cw_alarm_ecs_log_error_patterns" {
+  description = <<-EOT
+    One or more CloudWatch Logs metric filter patterns. The module creates
+    one metric filter per pattern, and they all publish to the SAME metric
+    (CloudWatch Sum aggregation), so a single alarm watches the combined
+    count.
+
+    Why a list instead of one string: CloudWatch metric-filter syntax for
+    unstructured logs silently drops `?` (OR) groups when combined with `-`
+    (NOT) in the same pattern — so `?ERROR ?Exception -"errorMsg"` matches
+    every line lacking "errorMsg", regardless of whether ERROR/Exception is
+    actually present. The clean workaround is to write each `TERM -"errorMsg"`
+    as its own (AND-only) pattern. Patterns are also case-sensitive, so
+    enumerate case variants explicitly when needed.
+  EOT
+  type        = list(string)
+
+  validation {
+    condition     = length(var.cw_alarm_ecs_log_error_patterns) > 0
+    error_message = "cw_alarm_ecs_log_error_patterns must contain at least one pattern."
+  }
 }
 
 # Thresholds
@@ -106,6 +124,12 @@ variable "max_tasks" {}
 
 variable "chatbot_notice_sns_topic_arn" {}
 variable "chatbot_alert_sns_topic_arn" {}
+
+variable "create_log_error_alarm" {
+  description = "If false, the legacy log-error metric filter + alarm are NOT created (Portal owns the enriched replacement). Default true keeps existing behavior."
+  type        = bool
+  default     = true
+}
 
 variable "tags" {
   type        = map(string)

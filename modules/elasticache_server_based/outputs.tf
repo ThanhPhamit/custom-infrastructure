@@ -28,3 +28,18 @@ output "cache_nodes" {
   description = "Map of all cache nodes with their details"
   value       = local.cache_nodes
 }
+
+output "engine_log_group_arn" {
+  description = "ARN of the engine-log CloudWatch log group (null when log delivery disabled)."
+  value       = try(aws_cloudwatch_log_group.engine_log[0].arn, null)
+}
+
+output "slow_log_group_arn" {
+  description = "ARN of the slow-log CloudWatch log group (null when log delivery disabled)."
+  value       = try(aws_cloudwatch_log_group.slow_log[0].arn, null)
+}
+
+output "log_group_arns" {
+  description = "List of CloudWatch log group ARNs created by log delivery (empty when disabled)."
+  value       = compact([try(aws_cloudwatch_log_group.engine_log[0].arn, ""), try(aws_cloudwatch_log_group.slow_log[0].arn, "")])
+}
