@@ -1,3 +1,14 @@
+locals {
+  # Resolve the effective routing mode: explicit `routing_mode` wins; fall
+  # back to the legacy boolean for callers that haven't migrated yet.
+  effective_routing_mode = (
+    var.routing_mode != null
+    ? var.routing_mode
+    : (var.enable_spa_router ? "spa" : "none")
+  )
+  routing_function_enabled = local.effective_routing_mode != "none"
+}
+
 resource "random_uuid" "s3_bucket_postfix_uuid" {}
 
 resource "aws_s3_bucket" "frontend" {
@@ -80,7 +91,7 @@ resource "aws_secretsmanager_secret_version" "basic_auth_version" {
 }
 
 resource "aws_cloudfront_function" "basic_auth" {
-  count   = var.create_cloudfront_function && !var.enable_spa_router ? 1 : 0
+  count   = var.create_cloudfront_function && local.effective_routing_mode == "none" ? 1 : 0
   name    = "${var.app_name}-basic-auth"
   runtime = "cloudfront-js-2.0"
   comment = "Basic Auth"
@@ -94,23 +105,34 @@ resource "aws_cloudfront_function" "basic_auth" {
   depends_on = [aws_secretsmanager_secret_version.basic_auth_version]
 }
 
-# SPA Router CloudFront Function with optional Basic Auth
-# Serves index.html for all routes without file extension (for client-side routing)
-# Supports subdomain-based role detection (patient.*, clinic.*, admin.*)
+# Router CloudFront Function. One function regardless of bundler: SPA (single
+# index.html, client-side router) OR Next.js static export (per-route HTML).
+# The chosen JS file rewrites incoming URIs to the matching S3 object key.
+#
+# Basic Auth is currently only supported in "spa" mode (existing
+# spa_router_with_auth.js). Wire a `nextjs_router_with_auth.js` if you ever
+# need to put a Next.js export behind basic auth.
 resource "aws_cloudfront_function" "spa_router" {
-  count   = var.enable_spa_router ? 1 : 0
-  name    = "${var.app_name}-spa-router"
+  count   = local.routing_function_enabled ? 1 : 0
+  name    = "${var.app_name}-${local.effective_routing_mode}-router"
   runtime = "cloudfront-js-2.0"
-  comment = "SPA Router for subdomain-based Vue/React apps"
+  comment = "${local.effective_routing_mode} URI rewriter"
   publish = true
 
-  # Use different JS file based on whether basic auth is enabled
-  code = var.create_cloudfront_function ? templatefile(
-    "${path.module}/spa_router_with_auth.js",
-    {
-      authString = base64encode("${jsondecode(aws_secretsmanager_secret_version.basic_auth_version[0].secret_string).username}:${jsondecode(aws_secretsmanager_secret_version.basic_auth_version[0].secret_string).password}")
-    }
-  ) : file("${path.module}/spa_router.js")
+  code = (
+    local.effective_routing_mode == "nextjs"
+    ? file("${path.module}/nextjs_router.js")
+    : (
+      var.create_cloudfront_function
+      ? templatefile(
+        "${path.module}/spa_router_with_auth.js",
+        {
+          authString = base64encode("${jsondecode(aws_secretsmanager_secret_version.basic_auth_version[0].secret_string).username}:${jsondecode(aws_secretsmanager_secret_version.basic_auth_version[0].secret_string).password}")
+        }
+      )
+      : file("${path.module}/spa_router.js")
+    )
+  )
 
   depends_on = [aws_secretsmanager_secret_version.basic_auth_version]
 }
@@ -122,7 +144,9 @@ resource "aws_cloudfront_distribution" "frontend" {
     origin_access_control_id = aws_cloudfront_origin_access_control.main.id
   }
 
-  aliases     = var.domains
+  # Only attach aliases when the caller provided custom domains. Setting
+  # aliases without a matching ACM cert in viewer_certificate is invalid.
+  aliases     = length(var.domains) > 0 ? var.domains : null
   enabled     = true
   price_class = var.price_class
 
@@ -169,18 +193,20 @@ resource "aws_cloudfront_distribution" "frontend" {
     default_ttl            = 0
     max_ttl                = 0
 
-    # SPA Router function (handles both SPA routing and optional basic auth)
+    # Router function (SPA or Next.js URI rewrite, plus optional basic auth
+    # in the SPA path). Attached whenever a routing mode is in effect.
     dynamic "function_association" {
-      for_each = var.enable_spa_router ? [aws_cloudfront_function.spa_router[0]] : []
+      for_each = local.routing_function_enabled ? [aws_cloudfront_function.spa_router[0]] : []
       content {
         event_type   = "viewer-request"
         function_arn = function_association.value.arn
       }
     }
 
-    # Basic auth only (when SPA router is disabled)
+    # Standalone basic-auth function for routing_mode = "none" (no rewrite,
+    # just gate access to a flat static site).
     dynamic "function_association" {
-      for_each = var.create_cloudfront_function && !var.enable_spa_router ? [aws_cloudfront_function.basic_auth[0]] : []
+      for_each = var.create_cloudfront_function && local.effective_routing_mode == "none" ? [aws_cloudfront_function.basic_auth[0]] : []
       content {
         event_type   = "viewer-request"
         function_arn = function_association.value.arn
@@ -194,9 +220,14 @@ resource "aws_cloudfront_distribution" "frontend" {
       locations        = []
     }
   }
+  # Custom domain → ACM cert in us-east-1. No custom domain → CloudFront's
+  # built-in `*.cloudfront.net` cert. Mixing the two (e.g. aliases set but
+  # no ACM ARN) is an API error, so the variable validation enforces both
+  # are present together.
   viewer_certificate {
-    acm_certificate_arn = var.acm_certificate_arn
-    ssl_support_method  = "sni-only"
+    cloudfront_default_certificate = var.acm_certificate_arn == null ? true : null
+    acm_certificate_arn            = var.acm_certificate_arn
+    ssl_support_method             = var.acm_certificate_arn == null ? null : "sni-only"
   }
 
   tags = merge(
@@ -236,9 +267,10 @@ resource "aws_s3_bucket_policy" "this" {
   policy = data.aws_iam_policy_document.frontend.json
 }
 
-# Route53 DNS records for all domains
+# Route53 DNS records — created only when custom domains are in play.
+# Skipped entirely when `domains` is empty (default-CloudFront-URL mode).
 resource "aws_route53_record" "app_domain_dns_record" {
-  for_each = toset(var.domains)
+  for_each = var.route_53_zone_id == null ? toset([]) : toset(var.domains)
 
   name    = each.value
   type    = "A"

@@ -4,24 +4,81 @@ variable "app_name" {
 }
 
 variable "acm_certificate_arn" {
-  description = "ACM certificate ARN for CloudFront (must be in us-east-1)"
+  description = <<-EOT
+    ACM certificate ARN for CloudFront (must be in us-east-1). Required only
+    when `domains` is non-empty; pass null to skip custom domains entirely
+    and fall back to the default `*.cloudfront.net` certificate.
+  EOT
   type        = string
+  default     = null
 }
 
 variable "route_53_zone_id" {
-  description = "Route53 hosted zone ID for DNS record"
+  description = <<-EOT
+    Route53 hosted zone ID. Required only when `domains` is non-empty so the
+    module can create alias records. Pass null when running without custom
+    domains.
+  EOT
   type        = string
+  default     = null
 }
 
 variable "domains" {
-  description = "List of custom domain names for the frontend (e.g., ['patient.example.com', 'clinic.example.com', 'admin.example.com']). All domains will use the same S3 bucket and CloudFront distribution."
+  description = <<-EOT
+    Custom domain names for the frontend. All domains share the same S3
+    bucket + CloudFront distribution. Leave empty `[]` to serve from the
+    default `*.cloudfront.net` URL — useful for internal tools that don't
+    need a vanity domain.
+  EOT
   type        = list(string)
+  default     = []
+
+  validation {
+    condition     = length(var.domains) == 0 || (var.acm_certificate_arn != null && var.route_53_zone_id != null)
+    error_message = "When `domains` is non-empty, both `acm_certificate_arn` and `route_53_zone_id` must be provided."
+  }
 }
 
 variable "enable_spa_router" {
-  description = "Enable SPA router CloudFront Function. This serves index.html for all routes without file extension, allowing client-side routing to work correctly. Recommended for Vue/React/Angular apps with subdomain-based role detection."
+  description = <<-EOT
+    DEPRECATED — prefer `routing_mode`. Kept for backward compatibility:
+      `enable_spa_router = true`  → routing_mode = "spa"   (everything → /index.html)
+      `enable_spa_router = false` → routing_mode = "none"
+    Ignored when `routing_mode` is set explicitly.
+  EOT
   type        = bool
   default     = true
+}
+
+variable "routing_mode" {
+  description = <<-EOT
+    URL-rewrite strategy for the CloudFront distribution. Choose the mode
+    that matches how your bundler emits HTML:
+
+      "spa"    — single `/index.html` + client-side router (Vue / React /
+                 Angular / CRA / Vite). Rewrites everything without an
+                 extension OR ending in `/` to `/index.html`. Same behaviour
+                 as the legacy `enable_spa_router = true`.
+
+      "nextjs" — Next.js `output: "export"` (one pre-rendered HTML per route
+                 at `/route/index.html`). Rewrites `/login/` → `/login/index.html`
+                 and `/tenants` → `/tenants/index.html`. Each route renders
+                 its own HTML — no client-side redirect dance, no spinner
+                 deadlock when the home page's redirect target equals the
+                 current URL.
+
+      "none"   — no rewrite. Useful for plain static sites where every
+                 requested object exists in S3 as-is.
+
+    Leave null to fall back to the deprecated `enable_spa_router` flag.
+  EOT
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.routing_mode == null || contains(["spa", "nextjs", "none"], var.routing_mode)
+    error_message = "routing_mode must be one of: spa, nextjs, none."
+  }
 }
 
 variable "create_cloudfront_function" {

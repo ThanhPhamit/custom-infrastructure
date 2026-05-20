@@ -100,7 +100,57 @@ module "frontend" {
 }
 ```
 
-### Example 3: Static Website (Non-SPA)
+### Example 3: Internal Tool — No Custom Domain
+
+For internal-only frontends (admin consoles, observability portals) that are
+fine being reached via the default `*.cloudfront.net` URL. Skip ACM + Route53
+entirely by leaving the three custom-domain inputs at their null/empty
+defaults.
+
+```terraform
+module "frontend" {
+  source = "../../modules/s3_frontend"
+
+  app_name = "${var.environment}-portal"
+
+  # Skip custom domain — uses CloudFront default cert + URL.
+  # domains, acm_certificate_arn, route_53_zone_id all omitted.
+
+  routing_mode               = "nextjs"   # or "spa"
+  create_cloudfront_function = false
+
+  tags = local.tags
+}
+```
+
+Output `cloudfront_distribution.frontend.domain_name` gives the
+`dXXXXXXXX.cloudfront.net` URL to hand back to users.
+
+### Example 4: Next.js Static Export
+
+For `next build` with `output: "export"` (one pre-rendered HTML per route at
+`/route/index.html`). The default `routing_mode = "spa"` would serve the wrong
+file because the home page's redirect target equals the current URL.
+
+```terraform
+module "frontend" {
+  source = "../../modules/s3_frontend"
+
+  app_name            = "${var.environment}-portal"
+  domains             = ["portal.example.com"]
+  acm_certificate_arn = module.acm_virginia.certificate_arn
+  route_53_zone_id    = data.aws_route53_zone.main.zone_id
+
+  routing_mode = "nextjs"  # /login/ → /login/index.html
+
+  create_cloudfront_function = false
+  spa_mode                   = true   # keep 404 → /index.html SPA fallback
+
+  tags = local.tags
+}
+```
+
+### Example 4: Static Website (Non-SPA)
 
 ```terraform
 module "docs_site" {
@@ -112,7 +162,7 @@ module "docs_site" {
   route_53_zone_id    = data.aws_route53_zone.main.zone_id
 
   create_cloudfront_function = false
-  enable_spa_router          = false
+  routing_mode               = "none"
 
   # Disable SPA mode for traditional static sites
   spa_mode            = false
@@ -172,19 +222,20 @@ For Japan-focused applications, use `PriceClass_200`.
 
 ## Inputs
 
-| Name                       | Description                                     | Type           | Default            | Required |
-| -------------------------- | ----------------------------------------------- | -------------- | ------------------ | :------: |
-| app_name                   | Application name for resource naming            | `string`       | n/a                |   yes    |
-| domains                    | List of custom domain names (supports multiple) | `list(string)` | n/a                |   yes    |
-| acm_certificate_arn        | ACM certificate ARN (must be in us-east-1)      | `string`       | n/a                |   yes    |
-| route_53_zone_id           | Route53 hosted zone ID                          | `string`       | n/a                |   yes    |
-| enable_spa_router          | Enable SPA router CloudFront Function           | `bool`         | `true`             |    no    |
-| create_cloudfront_function | Enable basic auth in CloudFront function        | `bool`         | `true`             |    no    |
-| basic_auth_password        | Password for basic auth (username = app_name)   | `string`       | `""`               |    no    |
-| spa_mode                   | Enable SPA mode (403/404 → index.html)          | `bool`         | `true`             |    no    |
-| default_root_object        | Default root object (index file)                | `string`       | `"index.html"`     |    no    |
-| price_class                | CloudFront price class                          | `string`       | `"PriceClass_All"` |    no    |
-| tags                       | Tags to apply to resources                      | `map(string)`  | `{}`               |    no    |
+| Name                       | Description                                     | Type           | Default              |  Required   |
+| -------------------------- | ----------------------------------------------- | -------------- | -------------------- | :---------: |
+| app_name                   | Application name for resource naming            | `string`       | n/a                  |     yes     |
+| domains                    | Custom domain names (empty = default URL)       | `list(string)` | `[]`                 |     no      |
+| acm_certificate_arn        | ACM certificate ARN (must be in us-east-1)      | `string`       | `null`               | iff domains |
+| route_53_zone_id           | Route53 hosted zone ID                          | `string`       | `null`               | iff domains |
+| routing_mode               | URI rewrite mode: `"spa"`, `"nextjs"`, `"none"` | `string`       | `null` (uses legacy) |     no      |
+| enable_spa_router          | DEPRECATED — use `routing_mode`                 | `bool`         | `true`               |     no      |
+| create_cloudfront_function | Enable basic auth in CloudFront function        | `bool`         | `true`               |     no      |
+| basic_auth_password        | Password for basic auth (username = app_name)   | `string`       | `""`                 |     no      |
+| spa_mode                   | Enable SPA mode (403/404 → index.html)          | `bool`         | `true`               |     no      |
+| default_root_object        | Default root object (index file)                | `string`       | `"index.html"`       |     no      |
+| price_class                | CloudFront price class                          | `string`       | `"PriceClass_All"`   |     no      |
+| tags                       | Tags to apply to resources                      | `map(string)`  | `{}`                 |     no      |
 
 ## Outputs
 
