@@ -121,7 +121,14 @@ resource "aws_cloudfront_function" "spa_router" {
 
   code = (
     local.effective_routing_mode == "nextjs"
-    ? file("${path.module}/nextjs_router.js")
+    ? (
+      var.canonical_domain != null
+      ? templatefile(
+        "${path.module}/nextjs_router_with_canonical_redirect.js",
+        { canonical_domain = var.canonical_domain }
+      )
+      : file("${path.module}/nextjs_router.js")
+    )
     : (
       var.create_cloudfront_function
       ? templatefile(

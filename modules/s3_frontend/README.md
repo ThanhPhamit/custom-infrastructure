@@ -1,272 +1,302 @@
 # AWS S3 Frontend Hosting Terraform Module
 
-Terraform module which creates S3 bucket with CloudFront distribution for hosting static frontend applications (React, Vue, Angular, Next.js static export, etc.).
+Terraform module that hosts a static frontend (React, Vue, Angular, Next.js
+static export, plain HTML) on S3 + CloudFront with HTTPS, optional basic auth,
+and optional canonical-domain enforcement.
 
 ## Features
 
-This module supports creating:
-
-- **S3 Bucket** - Private bucket with versioning enabled
-- **CloudFront Distribution** - Global CDN with HTTPS, supports multiple subdomains
-- **Origin Access Control (OAC)** - Secure S3 access (recommended over OAI)
-- **SPA Router Function** - CloudFront Function for subdomain-based Vue/React apps
-- **Basic Authentication** - Optional CloudFront Function for staging protection
-- **SPA Support** - Client-side routing support (403/404 → index.html)
-- **Route53 DNS** - Automatic DNS record creation for all domains
-- **Secrets Manager** - Secure basic auth credential storage
+- **S3 Bucket** — private, versioned, 30-day non-current-version lifecycle.
+- **CloudFront Distribution** — global CDN, multiple aliases on one distribution.
+- **Origin Access Control (OAC)** — recommended over OAI; signed S3 origin requests.
+- **Router CloudFront Function** — URI rewriter for SPA / Next.js static export.
+- **Canonical Domain Redirect** — 301-redirect any non-canonical Host (e.g. `www.` → apex).
+- **Basic Authentication** — optional CloudFront Function for staging gating.
+- **SPA Fallback** — `403/404` → `index.html` for client-side routers.
+- **Route53 DNS** — alias records for every domain in `domains`.
+- **Secrets Manager** — basic-auth credentials stored outside the function.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Route53 DNS                               │
-│  patient.example.com  ──┐                                   │
-│  clinic.example.com   ──┼──→ CloudFront Distribution        │
-│  admin.example.com    ──┘                                   │
-└─────────────────────────┬───────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                        Route53 DNS                                   │
+│   thanhpham.site      ──┐                                            │
+│   www.thanhpham.site  ──┴──→ CloudFront Distribution                 │
+└─────────────────────────┬────────────────────────────────────────────┘
                           │
-┌─────────────────────────▼───────────────────────────────────┐
-│           CloudFront Distribution (1 distribution)          │
-│  - aliases: [patient.*, clinic.*, admin.*]                  │
-│  - CloudFront Function: SPA Router + Basic Auth             │
-│  - All routes → index.html (client-side routing)            │
-└─────────────────────────┬───────────────────────────────────┘
-                          │
-┌─────────────────────────▼───────────────────────────────────┐
-│              S3 Bucket (1 bucket, same content)              │
-│  /index.html ← Vue/React app detects subdomain client-side  │
-│  /assets/*                                                   │
-└──────────────────────────────────────────────────────────────┘
+┌─────────────────────────▼────────────────────────────────────────────┐
+│        CloudFront Distribution (single distribution)                 │
+│   aliases:  [thanhpham.site, www.thanhpham.site]                     │
+│   viewer-request function:                                           │
+│     1. canonical redirect (Host != canonical → 301)                  │
+│     2. URI rewrite (/about → /about/index.html)                      │
+└─────────────────────────┬────────────────────────────────────────────┘
+                          │  OAC (sigv4-signed)
+┌─────────────────────────▼────────────────────────────────────────────┐
+│          S3 Bucket — versioned, private, OAC-only access             │
+│   /index.html                                                        │
+│   /about/index.html                                                  │
+│   /assets/*                                                          │
+└──────────────────────────────────────────────────────────────────────┘
 ```
+
+## Routing modes
+
+The module picks one URI rewrite strategy per distribution. Set via `routing_mode`:
+
+| `routing_mode` | Use it when… | Rewrite |
+| --- | --- | --- |
+| `"spa"`    | Vite / CRA / Vue / React with a single `/index.html` + client-side router. | Anything without an extension or ending in `/` → `/index.html`. |
+| `"nextjs"` | `next build` with `output: "export"` (one HTML per route at `/route/index.html`). | `/about` → `/about/index.html`, `/about/` → `/about/index.html`. |
+| `"none"`   | Plain static sites where every requested object exists in S3 as-is. | No rewrite. |
+
+Leave `routing_mode = null` and the module falls back to the deprecated
+`enable_spa_router` boolean (kept for backward compatibility).
+
+## Canonical-domain redirect (`canonical_domain`)
+
+Force every incoming request to resolve to one canonical host. Most useful for
+**`www` ↔ apex** disambiguation — pick one as canonical, 301-redirect the other:
+
+```hcl
+module "frontend" {
+  source = "../../modules/s3_frontend"
+  # …
+  domains          = ["thanhpham.site", "www.thanhpham.site"]
+  canonical_domain = "thanhpham.site"   # www → thanhpham.site
+}
+```
+
+Behaviour on every viewer-request:
+
+1. **`Host != canonical_domain`** → return `301 Location: https://<canonical><uri>?<query>` with `Cache-Control: max-age=3600`. The browser follows the redirect; the second request hits CloudFront with the canonical Host and skips this branch.
+2. **`Host == canonical_domain`** → apply the URI rewrite for the configured `routing_mode`.
+
+Currently only implemented for `routing_mode = "nextjs"` because all routing
+modes share the same CloudFront-function slot. Combining with `spa` / `none`
+just needs an analogous JS template — see `nextjs_router_with_canonical_redirect.js`.
 
 ## Usage
 
-### Example 1: Multi-Subdomain SPA (Vue/React with role detection)
+### Example 1 — Next.js export with `www` → apex 301
 
-```terraform
+```hcl
+module "frontend" {
+  source = "../../modules/s3_frontend"
+
+  app_name            = "personal-homepage"
+  domains             = ["thanhpham.site", "www.thanhpham.site"]
+  acm_certificate_arn = module.acm.virginia_certificate_arn
+  route_53_zone_id    = data.aws_route53_zone.root.zone_id
+
+  routing_mode               = "nextjs"
+  canonical_domain           = "thanhpham.site"
+  spa_mode                   = false
+  create_cloudfront_function = false  # no basic auth on public site
+
+  price_class = "PriceClass_200"
+  tags        = local.tags
+}
+```
+
+### Example 2 — Multi-subdomain SPA (Vue / React) with basic auth
+
+```hcl
 module "frontend" {
   source = "../../modules/s3_frontend"
 
   app_name = "${var.environment}-${var.app_name}"
 
-  # Multiple subdomains - all served from same S3 bucket
   domains = [
-    "patient.example.com",  # Patient portal
-    "clinic.example.com",   # Clinic dashboard
-    "admin.example.com"     # Admin panel
+    "patient.example.com",
+    "clinic.example.com",
+    "admin.example.com",
   ]
 
-  acm_certificate_arn = module.acm_virginia.certificate_arn  # Must be us-east-1
+  acm_certificate_arn = module.acm.virginia_certificate_arn
   route_53_zone_id    = data.aws_route53_zone.main.zone_id
 
-  # Enable SPA router for subdomain-based apps
-  enable_spa_router = true
+  routing_mode = "spa"
+  spa_mode     = true
 
-  # Enable basic auth for staging
-  create_cloudfront_function = true
+  create_cloudfront_function = true               # basic auth in front of staging
   basic_auth_password        = var.staging_password
 
-  spa_mode            = true
-  default_root_object = "index.html"
-  price_class         = "PriceClass_200"
-
-  tags = local.tags
+  price_class = "PriceClass_200"
+  tags        = local.tags
 }
 ```
 
-### Example 2: Production (No Basic Auth)
+### Example 3 — Internal tool, no custom domain
 
-```terraform
+For internal-only frontends that are fine living at the default
+`*.cloudfront.net` URL. Skip ACM + Route53 by leaving the three custom-domain
+inputs at their null/empty defaults.
+
+```hcl
 module "frontend" {
   source = "../../modules/s3_frontend"
 
-  app_name            = "${var.environment}-${var.app_name}"
-  domains             = ["www.example.com"]
-  acm_certificate_arn = module.acm_virginia.certificate_arn
-  route_53_zone_id    = data.aws_route53_zone.main.zone_id
-
-  # Disable basic auth for production
-  create_cloudfront_function = false
-  enable_spa_router          = true
-
-  spa_mode            = true
-  default_root_object = "index.html"
-  price_class         = "PriceClass_200"
-
-  tags = {
-    Environment = "production"
-    Terraform   = "true"
-  }
-}
-```
-
-### Example 3: Internal Tool — No Custom Domain
-
-For internal-only frontends (admin consoles, observability portals) that are
-fine being reached via the default `*.cloudfront.net` URL. Skip ACM + Route53
-entirely by leaving the three custom-domain inputs at their null/empty
-defaults.
-
-```terraform
-module "frontend" {
-  source = "../../modules/s3_frontend"
-
-  app_name = "${var.environment}-portal"
-
-  # Skip custom domain — uses CloudFront default cert + URL.
-  # domains, acm_certificate_arn, route_53_zone_id all omitted.
-
-  routing_mode               = "nextjs"   # or "spa"
+  app_name                   = "${var.environment}-portal"
+  routing_mode               = "nextjs"
   create_cloudfront_function = false
 
   tags = local.tags
 }
 ```
 
-Output `cloudfront_distribution.frontend.domain_name` gives the
-`dXXXXXXXX.cloudfront.net` URL to hand back to users.
+Read the `*.cloudfront.net` URL from the `cloudfront_domain_name` output and
+hand it back to users.
 
-### Example 4: Next.js Static Export
+### Example 4 — Plain static site (no rewrite, no SPA fallback)
 
-For `next build` with `output: "export"` (one pre-rendered HTML per route at
-`/route/index.html`). The default `routing_mode = "spa"` would serve the wrong
-file because the home page's redirect target equals the current URL.
-
-```terraform
-module "frontend" {
-  source = "../../modules/s3_frontend"
-
-  app_name            = "${var.environment}-portal"
-  domains             = ["portal.example.com"]
-  acm_certificate_arn = module.acm_virginia.certificate_arn
-  route_53_zone_id    = data.aws_route53_zone.main.zone_id
-
-  routing_mode = "nextjs"  # /login/ → /login/index.html
-
-  create_cloudfront_function = false
-  spa_mode                   = true   # keep 404 → /index.html SPA fallback
-
-  tags = local.tags
-}
-```
-
-### Example 4: Static Website (Non-SPA)
-
-```terraform
+```hcl
 module "docs_site" {
   source = "../../modules/s3_frontend"
 
   app_name            = "${var.environment}-docs"
   domains             = ["docs.example.com"]
-  acm_certificate_arn = module.acm_virginia.certificate_arn
+  acm_certificate_arn = module.acm.virginia_certificate_arn
   route_53_zone_id    = data.aws_route53_zone.main.zone_id
 
-  create_cloudfront_function = false
   routing_mode               = "none"
+  spa_mode                   = false
+  create_cloudfront_function = false
 
-  # Disable SPA mode for traditional static sites
-  spa_mode            = false
-  default_root_object = "index.html"
-
-  price_class = "PriceClass_100"  # US/Europe only
-
-  tags = local.tags
+  price_class = "PriceClass_100"
+  tags        = local.tags
 }
 ```
 
-## Deploying Frontend Files
+## Deploying frontend files
 
-After creating the infrastructure, deploy your frontend files:
+After the first `terraform apply`, ship content with `aws s3 sync` and a
+CloudFront invalidation. Pull bucket name + distribution ID from outputs (or
+state) so it works the same in local + CI:
 
 ```bash
-# Build your frontend
+BUCKET=$(terraform output -raw bucket_name)
+DIST_ID=$(terraform output -raw cloudfront_distribution_id)
+
 npm run build
 
-# Sync to S3 (React/Vite)
-aws s3 sync ./dist s3://BUCKET_NAME --delete
+# Long-lived caching for hashed assets…
+aws s3 sync ./out s3://$BUCKET/ --delete \
+  --exclude "*.html" --exclude "*.json" \
+  --cache-control "public, max-age=31536000, immutable"
 
-# Invalidate CloudFront cache
-aws cloudfront create-invalidation \
-  --distribution-id DISTRIBUTION_ID \
-  --paths "/*"
+# …short cache for HTML so route updates ship immediately after invalidation.
+aws s3 sync ./out s3://$BUCKET/ \
+  --exclude "*" --include "*.html" --include "*.json" \
+  --cache-control "public, max-age=0, must-revalidate"
+
+aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"
 ```
 
-### GitHub Actions Deployment Example
+### GitHub Actions example
 
 ```yaml
-- name: Deploy to S3
+- name: Deploy to S3 + invalidate CloudFront
   run: |
-    aws s3 sync ./dist s3://${{ secrets.S3_BUCKET }} --delete
+    aws s3 sync ./out s3://${{ secrets.S3_BUCKET }} --delete \
+      --cache-control "public, max-age=31536000, immutable" \
+      --exclude "*.html" --exclude "*.json"
+
+    aws s3 sync ./out s3://${{ secrets.S3_BUCKET }} \
+      --exclude "*" --include "*.html" --include "*.json" \
+      --cache-control "public, max-age=0, must-revalidate"
+
     aws cloudfront create-invalidation \
       --distribution-id ${{ secrets.CF_DISTRIBUTION_ID }} \
       --paths "/*"
 ```
 
-## Price Class Options
+## Price class
 
-| Price Class    | Regions                       | Cost    |
-| -------------- | ----------------------------- | ------- |
-| PriceClass_All | All edge locations            | Highest |
-| PriceClass_200 | US, Europe, Asia, Middle East | Medium  |
-| PriceClass_100 | US, Europe only               | Lowest  |
+| Price class      | Edge locations              | Cost    |
+| ---------------- | --------------------------- | ------- |
+| `PriceClass_All` | All edge locations          | Highest |
+| `PriceClass_200` | US, Europe, Asia, ME, India | Medium  |
+| `PriceClass_100` | US, Europe only             | Lowest  |
 
-For Japan-focused applications, use `PriceClass_200`.
+Pick `PriceClass_200` for Southeast Asia viewers — that's the cheapest tier
+that still includes Singapore / Tokyo / Mumbai edges.
 
-## SPA vs Static Site
+## SPA vs static fallback
 
-| Feature             | SPA Mode (`spa_mode = true`) | Static Site (`spa_mode = false`) |
-| ------------------- | ---------------------------- | -------------------------------- |
-| 403/404 handling    | Redirect to index.html       | Show error page                  |
-| Client-side routing | ✅ Supported                 | ❌ Not supported                 |
-| Use case            | React, Vue, Angular          | Documentation, blogs             |
+| `spa_mode` | What changes | Use for |
+| --- | --- | --- |
+| `true`  | `403` and `404` from S3 are rewritten to `200 /index.html`. | Vue / React / Angular SPAs. |
+| `false` | `403` / `404` propagate to the viewer. | Next.js export, Hugo, docs, anything pre-rendered. |
+
+Combine `routing_mode = "nextjs"` with `spa_mode = false` for Next.js exports —
+the URI rewrite already targets the correct per-route HTML, so the SPA
+fallback would mask real 404s.
 
 ## Inputs
 
-| Name                       | Description                                     | Type           | Default              |  Required   |
-| -------------------------- | ----------------------------------------------- | -------------- | -------------------- | :---------: |
-| app_name                   | Application name for resource naming            | `string`       | n/a                  |     yes     |
-| domains                    | Custom domain names (empty = default URL)       | `list(string)` | `[]`                 |     no      |
-| acm_certificate_arn        | ACM certificate ARN (must be in us-east-1)      | `string`       | `null`               | iff domains |
-| route_53_zone_id           | Route53 hosted zone ID                          | `string`       | `null`               | iff domains |
-| routing_mode               | URI rewrite mode: `"spa"`, `"nextjs"`, `"none"` | `string`       | `null` (uses legacy) |     no      |
-| enable_spa_router          | DEPRECATED — use `routing_mode`                 | `bool`         | `true`               |     no      |
-| create_cloudfront_function | Enable basic auth in CloudFront function        | `bool`         | `true`               |     no      |
-| basic_auth_password        | Password for basic auth (username = app_name)   | `string`       | `""`                 |     no      |
-| spa_mode                   | Enable SPA mode (403/404 → index.html)          | `bool`         | `true`               |     no      |
-| default_root_object        | Default root object (index file)                | `string`       | `"index.html"`       |     no      |
-| price_class                | CloudFront price class                          | `string`       | `"PriceClass_All"`   |     no      |
-| tags                       | Tags to apply to resources                      | `map(string)`  | `{}`                 |     no      |
+| Name | Description | Type | Default |
+| --- | --- | --- | --- |
+| `app_name` | Application name — prefixes all resource names. | `string` | n/a (**required**) |
+| `domains` | Custom domain aliases. Empty list → serve from `*.cloudfront.net`. | `list(string)` | `[]` |
+| `acm_certificate_arn` | ACM cert ARN (must be in `us-east-1`). Required when `domains` is non-empty. | `string` | `null` |
+| `route_53_zone_id` | Route53 hosted zone ID. Required when `domains` is non-empty. | `string` | `null` |
+| `routing_mode` | URI rewrite mode: `"spa"`, `"nextjs"`, `"none"`. | `string` | `null` (uses legacy bool) |
+| `enable_spa_router` | **Deprecated** — prefer `routing_mode`. | `bool` | `true` |
+| `canonical_domain` | When set, 301-redirect any non-matching Host to `https://<canonical><uri>`. Currently only honoured for `routing_mode = "nextjs"`. | `string` | `null` |
+| `create_cloudfront_function` | Enable basic auth in CloudFront function. | `bool` | `true` |
+| `basic_auth_password` | Password for basic auth (username = `app_name`). | `string` (sensitive) | `""` |
+| `spa_mode` | When `true`, `403/404` from S3 → `200 /index.html`. | `bool` | `true` |
+| `default_root_object` | Default root object (index file). | `string` | `"index.html"` |
+| `price_class` | CloudFront price class. | `string` | `"PriceClass_All"` |
+| `tags` | Tags applied to every resource the module creates. | `map(string)` | `{}` |
 
 ## Outputs
 
-| Name                        | Description                                         |
-| --------------------------- | --------------------------------------------------- |
-| bucket_name                 | S3 bucket name (for aws s3 sync)                    |
-| bucket_id                   | S3 bucket ID                                        |
-| bucket_arn                  | S3 bucket ARN                                       |
-| bucket_regional_domain_name | S3 bucket regional domain name                      |
-| cloudfront_distribution_id  | CloudFront distribution ID (for cache invalidation) |
-| cloudfront_distribution_arn | CloudFront distribution ARN                         |
-| cloudfront_domain_name      | CloudFront distribution domain name                 |
-| website_urls                | List of website URLs                                |
-| domains                     | List of configured domains                          |
-| basic_auth_secret_arn       | Secrets Manager ARN for basic auth credentials      |
+| Name | Description |
+| --- | --- |
+| `bucket_name` | S3 bucket name (use with `aws s3 sync`). |
+| `bucket_id` | S3 bucket ID. |
+| `bucket_arn` | S3 bucket ARN. |
+| `bucket_regional_domain_name` | S3 regional domain (origin domain). |
+| `cloudfront_distribution_id` | CloudFront distribution ID (use with `create-invalidation`). |
+| `cloudfront_distribution_arn` | CloudFront distribution ARN. |
+| `cloudfront_domain_name` | `dXXXXXXXX.cloudfront.net` — useful while DNS propagates. |
+| `website_urls` | List of `https://<domain>` URLs. |
+| `domains` | Echoes back the `domains` input. |
+| `basic_auth_secret_arn` | Secrets Manager ARN (null when basic auth disabled). |
 
-## Basic Auth Credentials
+## Basic auth credentials
 
-When basic auth is enabled:
+When `create_cloudfront_function = true`:
 
-- **Username**: Same as `app_name`
-- **Password**: Value of `basic_auth_password`
-- **Credentials stored in**: AWS Secrets Manager
+- **Username**: same as `app_name`.
+- **Password**: value of `basic_auth_password`.
+- Both are stored in AWS Secrets Manager and only inlined into the CloudFront
+  function code at deploy time.
 
-To retrieve credentials:
+Retrieve:
 
 ```bash
 aws secretsmanager get-secret-value \
-  --secret-id "app-name-CDN-basic-auth" \
+  --secret-id "<app_name>-CDN-basic-auth" \
   --query SecretString --output text | jq
 ```
+
+## CloudFront function files
+
+The module ships four template scripts. Only **one** is bound to the
+distribution at a time, picked from `routing_mode` + `canonical_domain` +
+`create_cloudfront_function`:
+
+| File | Picked when |
+| --- | --- |
+| `spa_router.js` | `routing_mode == "spa"`, basic auth off. |
+| `spa_router_with_auth.js` | `routing_mode == "spa"`, basic auth on. |
+| `nextjs_router.js` | `routing_mode == "nextjs"`, `canonical_domain == null`. |
+| `nextjs_router_with_canonical_redirect.js` | `routing_mode == "nextjs"`, `canonical_domain` set. |
+| `basic_auth.js` | `routing_mode == "none"`, basic auth on (standalone gate). |
 
 ## Requirements
 
@@ -278,9 +308,9 @@ aws secretsmanager get-secret-value \
 
 ## Notes
 
-1. **ACM Certificate**: Must be created in `us-east-1` region for CloudFront
-2. **DNS Propagation**: May take a few minutes after creation
-3. **Cache Invalidation**: Required after each deployment to see changes immediately
+1. The ACM cert must live in `us-east-1` — CloudFront doesn't accept certs from any other region.
+2. DNS propagation after first apply usually takes 5–10 minutes.
+3. Always invalidate `/*` (or specific paths) after a content sync; CloudFront edges otherwise keep the previous version until the TTL expires.
 
 ## License
 

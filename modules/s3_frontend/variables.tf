@@ -87,6 +87,20 @@ variable "create_cloudfront_function" {
   default     = true
 }
 
+variable "canonical_domain" {
+  description = <<-EOT
+    When set, any request whose Host header doesn't match this value is
+    301-redirected to `https://<canonical_domain><uri>`. Use it to enforce a
+    single canonical domain (e.g. send `www.example.com` to `example.com`).
+
+    Only honoured for `routing_mode = "nextjs"`; combining canonical-redirect
+    with `spa` / `none` modes isn't implemented yet because they share the same
+    CloudFront function slot.
+  EOT
+  type        = string
+  default     = null
+}
+
 variable "basic_auth_password" {
   description = "Password for basic auth. Username will be the app_name."
   type        = string
