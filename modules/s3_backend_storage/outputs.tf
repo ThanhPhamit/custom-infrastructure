@@ -19,8 +19,8 @@ output "bucket_regional_domain_name" {
 }
 
 output "s3_access_policy_arn" {
-  description = "ARN of the IAM policy for backend S3 access (attach to ECS task role)"
-  value       = aws_iam_policy.this.arn
+  description = "ARN of the IAM policy for backend S3 access (attach to ECS task role); null when create_access_policy = false"
+  value       = try(aws_iam_policy.this[0].arn, null)
 }
 
 output "s3_access_policy_json" {

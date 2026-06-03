@@ -5,11 +5,15 @@ locals {
 }
 
 resource "aws_s3_bucket" "this" {
-  bucket = local.bucket_name
+  bucket        = local.bucket_name
+  force_destroy = var.force_destroy
 
-  tags = {
-    Name = local.bucket_name
-  }
+  tags = merge(
+    var.tags,
+    {
+      Name = local.bucket_name
+    }
+  )
 }
 
 # Block all public access - only access via pre-signed URLs
@@ -24,6 +28,7 @@ resource "aws_s3_bucket_public_access_block" "this" {
 
 # CORS configuration for frontend to upload/download via pre-signed URLs
 resource "aws_s3_bucket_cors_configuration" "this" {
+  count  = var.create_cors_configuration ? 1 : 0
   bucket = aws_s3_bucket.this.id
 
   cors_rule {
@@ -80,6 +85,7 @@ data "aws_iam_policy_document" "this" {
 }
 
 resource "aws_iam_policy" "this" {
+  count       = var.create_access_policy ? 1 : 0
   name        = "${var.app_name}-backend-storage-access"
   description = "Policy for backend to access S3 bucket via pre-signed URLs"
   policy      = data.aws_iam_policy_document.this.json
