@@ -158,8 +158,8 @@ variable "replica_instance_class" {
 #--------------------------------------------------------------
 variable "backup_retention_period" {
   type        = number
-  description = "Number of days to retain backups"
-  default     = 35
+  description = "Number of days to retain automated backups"
+  default     = 7
 }
 
 variable "backup_window" {
@@ -204,6 +204,18 @@ variable "restricted_security_group_ids" {
   type        = list(string)
   description = "List of security group IDs allowed to access the RDS instance"
   default     = []
+}
+
+variable "egress_rules" {
+  description = "Egress rules for the RDS security group. Default [] = no egress (deny-all), which suits most databases. Add rules only if the DB must initiate outbound connections (e.g. S3 integration via VPC endpoints)."
+  type = list(object({
+    from_port   = number
+    to_port     = number
+    protocol    = string
+    cidr_blocks = list(string)
+    description = optional(string, "")
+  }))
+  default = []
 }
 
 variable "deletion_protection" {

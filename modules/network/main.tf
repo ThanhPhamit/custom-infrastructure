@@ -1,9 +1,9 @@
 terraform {
-  required_version = ">= 1.4.0"
+  required_version = ">= 1.9"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 5.0.0"
+      version = ">= 6.0.0, < 7.0.0"
     }
   }
 }
@@ -33,9 +33,9 @@ resource "aws_vpc" "this" {
   enable_dns_support   = var.enable_dns_support
 
   tags = merge(
-    { "Name" = var.name },
     var.tags,
-    var.vpc_tags
+    var.vpc_tags,
+    { "Name" = var.name }
   )
 }
 
@@ -53,9 +53,9 @@ resource "aws_vpc_dhcp_options" "this" {
   netbios_node_type    = var.dhcp_options_netbios_node_type
 
   tags = merge(
-    { "Name" = var.name },
     var.tags,
-    var.dhcp_options_tags
+    var.dhcp_options_tags,
+    { "Name" = var.name }
   )
 }
 
@@ -76,9 +76,9 @@ resource "aws_internet_gateway" "this" {
   vpc_id = aws_vpc.this[0].id
 
   tags = merge(
-    { "Name" = var.name },
     var.tags,
-    var.igw_tags
+    var.igw_tags,
+    { "Name" = var.name }
   )
 }
 
@@ -95,14 +95,14 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = var.map_public_ip_on_launch
 
   tags = merge(
+    var.tags,
+    var.public_subnet_tags,
     {
       "Name" = format(
         "${var.name}-${var.public_subnet_suffix}-%s",
         element(local.azs, count.index)
       )
-    },
-    var.tags,
-    var.public_subnet_tags
+    }
   )
 }
 
@@ -118,14 +118,14 @@ resource "aws_subnet" "private" {
   availability_zone = length(local.azs) > 0 ? element(local.azs, count.index) : null
 
   tags = merge(
+    var.tags,
+    var.private_subnet_tags,
     {
       "Name" = format(
         "${var.name}-${var.private_subnet_suffix}-%s",
         element(local.azs, count.index)
       )
-    },
-    var.tags,
-    var.private_subnet_tags
+    }
   )
 }
 
@@ -141,14 +141,14 @@ resource "aws_subnet" "database" {
   availability_zone = length(local.azs) > 0 ? element(local.azs, count.index) : null
 
   tags = merge(
+    var.tags,
+    var.database_subnet_tags,
     {
       "Name" = format(
         "${var.name}-${var.database_subnet_suffix}-%s",
         element(local.azs, count.index)
       )
-    },
-    var.tags,
-    var.database_subnet_tags
+    }
   )
 }
 
@@ -160,9 +160,9 @@ resource "aws_db_subnet_group" "database" {
   subnet_ids  = aws_subnet.database[*].id
 
   tags = merge(
-    { "Name" = coalesce(var.database_subnet_group_name, var.name) },
     var.tags,
-    var.database_subnet_group_tags
+    var.database_subnet_group_tags,
+    { "Name" = coalesce(var.database_subnet_group_name, var.name) }
   )
 }
 
@@ -178,14 +178,14 @@ resource "aws_subnet" "elasticache" {
   availability_zone = length(local.azs) > 0 ? element(local.azs, count.index) : null
 
   tags = merge(
+    var.tags,
+    var.elasticache_subnet_tags,
     {
       "Name" = format(
         "${var.name}-${var.elasticache_subnet_suffix}-%s",
         element(local.azs, count.index)
       )
-    },
-    var.tags,
-    var.elasticache_subnet_tags
+    }
   )
 }
 
@@ -197,9 +197,9 @@ resource "aws_elasticache_subnet_group" "elasticache" {
   subnet_ids  = aws_subnet.elasticache[*].id
 
   tags = merge(
-    { "Name" = coalesce(var.elasticache_subnet_group_name, var.name) },
     var.tags,
-    var.elasticache_subnet_group_tags
+    var.elasticache_subnet_group_tags,
+    { "Name" = coalesce(var.elasticache_subnet_group_name, var.name) }
   )
 }
 
@@ -215,14 +215,14 @@ resource "aws_subnet" "intra" {
   availability_zone = length(local.azs) > 0 ? element(local.azs, count.index) : null
 
   tags = merge(
+    var.tags,
+    var.intra_subnet_tags,
     {
       "Name" = format(
         "${var.name}-${var.intra_subnet_suffix}-%s",
         element(local.azs, count.index)
       )
-    },
-    var.tags,
-    var.intra_subnet_tags
+    }
   )
 }
 
@@ -236,9 +236,9 @@ resource "aws_route_table" "public" {
   vpc_id = aws_vpc.this[0].id
 
   tags = merge(
-    { "Name" = "${var.name}-${var.public_subnet_suffix}" },
     var.tags,
-    var.public_route_table_tags
+    var.public_route_table_tags,
+    { "Name" = "${var.name}-${var.public_subnet_suffix}" }
   )
 }
 
@@ -272,14 +272,14 @@ resource "aws_route_table" "private" {
   vpc_id = aws_vpc.this[0].id
 
   tags = merge(
+    var.tags,
+    var.private_route_table_tags,
     {
       "Name" = var.single_nat_gateway ? "${var.name}-${var.private_subnet_suffix}" : format(
         "${var.name}-${var.private_subnet_suffix}-%s",
         element(local.azs, count.index)
       )
-    },
-    var.tags,
-    var.private_route_table_tags
+    }
   )
 }
 
@@ -303,9 +303,9 @@ resource "aws_route_table" "database" {
   vpc_id = aws_vpc.this[0].id
 
   tags = merge(
-    { "Name" = "${var.name}-${var.database_subnet_suffix}" },
     var.tags,
-    var.database_route_table_tags
+    var.database_route_table_tags,
+    { "Name" = "${var.name}-${var.database_subnet_suffix}" }
   )
 }
 
@@ -353,9 +353,9 @@ resource "aws_route_table" "elasticache" {
   vpc_id = aws_vpc.this[0].id
 
   tags = merge(
-    { "Name" = "${var.name}-${var.elasticache_subnet_suffix}" },
     var.tags,
-    var.elasticache_route_table_tags
+    var.elasticache_route_table_tags,
+    { "Name" = "${var.name}-${var.elasticache_subnet_suffix}" }
   )
 }
 
@@ -394,9 +394,9 @@ resource "aws_route_table" "intra" {
   vpc_id = aws_vpc.this[0].id
 
   tags = merge(
-    { "Name" = "${var.name}-${var.intra_subnet_suffix}" },
     var.tags,
-    var.intra_route_table_tags
+    var.intra_route_table_tags,
+    { "Name" = "${var.name}-${var.intra_subnet_suffix}" }
   )
 }
 
@@ -417,14 +417,14 @@ resource "aws_eip" "nat" {
   domain = "vpc"
 
   tags = merge(
+    var.tags,
+    var.nat_eip_tags,
     {
       "Name" = format(
         "${var.name}-%s",
         element(local.azs, count.index)
       )
-    },
-    var.tags,
-    var.nat_eip_tags
+    }
   )
 
   depends_on = [aws_internet_gateway.this]
@@ -443,14 +443,14 @@ resource "aws_nat_gateway" "this" {
   )
 
   tags = merge(
+    var.tags,
+    var.nat_gateway_tags,
     {
       "Name" = format(
         "${var.name}-%s",
         element(local.azs, count.index)
       )
-    },
-    var.tags,
-    var.nat_gateway_tags
+    }
   )
 
   depends_on = [aws_internet_gateway.this]
@@ -479,9 +479,9 @@ resource "aws_vpc_endpoint" "s3" {
   service_name = "com.amazonaws.${var.aws_region}.s3"
 
   tags = merge(
-    { "Name" = "${var.name}-s3-endpoint" },
     var.tags,
-    var.vpc_endpoint_tags
+    var.vpc_endpoint_tags,
+    { "Name" = "${var.name}-s3-endpoint" }
   )
 }
 
@@ -506,9 +506,9 @@ resource "aws_vpc_endpoint" "dynamodb" {
   service_name = "com.amazonaws.${var.aws_region}.dynamodb"
 
   tags = merge(
-    { "Name" = "${var.name}-dynamodb-endpoint" },
     var.tags,
-    var.vpc_endpoint_tags
+    var.vpc_endpoint_tags,
+    { "Name" = "${var.name}-dynamodb-endpoint" }
   )
 }
 
@@ -542,9 +542,9 @@ resource "aws_security_group" "vpce_secretsmanager" {
   }
 
   tags = merge(
-    { "Name" = "${var.name}-vpce-secretsmanager-sg" },
     var.tags,
-    var.vpc_endpoint_tags
+    var.vpc_endpoint_tags,
+    { "Name" = "${var.name}-vpce-secretsmanager-sg" }
   )
 
   lifecycle {
@@ -563,9 +563,9 @@ resource "aws_vpc_endpoint" "secretsmanager" {
   security_group_ids  = [aws_security_group.vpce_secretsmanager[0].id]
 
   tags = merge(
-    { "Name" = "${var.name}-secretsmanager-endpoint" },
     var.tags,
-    var.vpc_endpoint_tags
+    var.vpc_endpoint_tags,
+    { "Name" = "${var.name}-secretsmanager-endpoint" }
   )
 }
 
@@ -609,9 +609,9 @@ resource "aws_default_security_group" "this" {
   }
 
   tags = merge(
-    { "Name" = coalesce(var.default_security_group_name, "${var.name}-default") },
     var.tags,
-    var.default_security_group_tags
+    var.default_security_group_tags,
+    { "Name" = coalesce(var.default_security_group_name, "${var.name}-default") }
   )
 }
 
@@ -658,9 +658,9 @@ resource "aws_default_network_acl" "this" {
   }
 
   tags = merge(
-    { "Name" = coalesce(var.default_network_acl_name, "${var.name}-default") },
     var.tags,
-    var.default_network_acl_tags
+    var.default_network_acl_tags,
+    { "Name" = coalesce(var.default_network_acl_name, "${var.name}-default") }
   )
 
   lifecycle {
@@ -703,8 +703,8 @@ resource "aws_default_route_table" "default" {
   }
 
   tags = merge(
-    { "Name" = coalesce(var.default_route_table_name, "${var.name}-default") },
     var.tags,
-    var.default_route_table_tags
+    var.default_route_table_tags,
+    { "Name" = coalesce(var.default_route_table_name, "${var.name}-default") }
   )
 }

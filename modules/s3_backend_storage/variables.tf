@@ -38,3 +38,21 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "enable_lifecycle" {
+  description = "Create a lifecycle configuration to expire noncurrent versions and abort incomplete multipart uploads. Default false preserves prior behavior."
+  type        = bool
+  default     = false
+}
+
+variable "noncurrent_version_expiration_days" {
+  description = "Days after which noncurrent object versions are expired (when enable_lifecycle = true)."
+  type        = number
+  default     = 30
+}
+
+variable "abort_incomplete_multipart_days" {
+  description = "Days after which incomplete multipart uploads are aborted (when enable_lifecycle = true)."
+  type        = number
+  default     = 7
+}

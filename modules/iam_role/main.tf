@@ -4,7 +4,8 @@ resource "aws_iam_role" "this" {
   tags = merge(
     var.tags,
     {
-      Name = var.name
+      Name      = var.name
+      ManagedBy = "Terraform"
     }
   )
 }

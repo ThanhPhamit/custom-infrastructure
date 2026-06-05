@@ -99,11 +99,17 @@ resource "aws_security_group" "db" {
   description = "Security group for RDS ${var.db_name}"
   vpc_id      = var.vpc_id
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+  # Deny-all egress by default (var.egress_rules = []); opt in only if the DB
+  # must initiate outbound connections.
+  dynamic "egress" {
+    for_each = var.egress_rules
+    content {
+      from_port   = egress.value.from_port
+      to_port     = egress.value.to_port
+      protocol    = egress.value.protocol
+      cidr_blocks = egress.value.cidr_blocks
+      description = egress.value.description
+    }
   }
 
   tags = merge(

@@ -11,9 +11,32 @@ resource "aws_s3_bucket" "this" {
   tags = merge(
     var.tags,
     {
-      Name = local.bucket_name
+      Name      = local.bucket_name
+      ManagedBy = "Terraform"
     }
   )
+}
+
+# Optional lifecycle: expire noncurrent versions and abort incomplete multipart
+# uploads. Default OFF to preserve prior behavior for existing callers.
+resource "aws_s3_bucket_lifecycle_configuration" "this" {
+  count  = var.enable_lifecycle ? 1 : 0
+  bucket = aws_s3_bucket.this.id
+
+  rule {
+    id     = "expire-noncurrent-and-abort-mpu"
+    status = "Enabled"
+
+    filter {}
+
+    noncurrent_version_expiration {
+      noncurrent_days = var.noncurrent_version_expiration_days
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = var.abort_incomplete_multipart_days
+    }
+  }
 }
 
 # Block all public access - only access via pre-signed URLs
