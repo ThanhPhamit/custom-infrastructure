@@ -4,13 +4,9 @@ variable "region" {
 variable "profile" {
   type = string
 }
-variable "app_name" {}
-
 # Network module
 variable "azs_name" {}
 variable "vpc_cidr" {}
-variable "public_subnet_ciders" {}
-variable "private_subnet_ciders" {}
 
 # RDS cluster module
 variable "sec_region" {

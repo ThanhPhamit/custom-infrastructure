@@ -1,12 +1,9 @@
 module "network" {
   source = "../../modules/network"
 
-  app_name              = var.app_name
-  aws_region            = var.region
-  azs_name              = var.azs_name
-  vpc_cidr              = var.vpc_cidr
-  public_subnet_ciders  = var.public_subnet_ciders
-  private_subnet_ciders = var.private_subnet_ciders
+  aws_region = var.region
+  azs_name   = var.azs_name
+  vpc_cidr   = var.vpc_cidr
 }
 
 module "rds" {
@@ -16,19 +13,19 @@ module "rds" {
     aws.secondary = aws
   }
 
-  region                      = var.region
-  sec_region                  = var.sec_region
-  primary_azs_name            = var.azs_name
-  secondary_azs_name          = []
-  primary_vpc_id              = module.network.vpc_id
-  private_subnet_ids_p        = module.network.private_subnet_ids
-  private_subnet_ids_s        = null
-  name                        = var.name
-  identifier                  = var.identifier
-  engine                      = var.engine
-  engine_version_pg           = var.engine_version_pg
-  engine_version_mysql        = var.engine_version_mysql
-  instance_class              = var.db_instance_class
+  region               = var.region
+  sec_region           = var.sec_region
+  primary_azs_name     = var.azs_name
+  secondary_azs_name   = []
+  primary_vpc_id       = module.network.vpc_id
+  private_subnet_ids_p = module.network.private_subnet_ids
+  private_subnet_ids_s = null
+  name                 = var.name
+  identifier           = var.identifier
+  engine               = var.engine
+  engine_version_pg    = var.engine_version_pg
+  engine_version_mysql = var.engine_version_mysql
+  instance_class       = var.db_instance_class
 
   database_name               = "welfandb"
   username                    = "welfanuser"

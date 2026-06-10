@@ -573,25 +573,3 @@ variable "default_route_table_tags" {
   type        = map(string)
   default     = {}
 }
-
-################################################################################
-# Backward Compatibility (deprecated variables)
-################################################################################
-
-variable "app_name" {
-  description = "DEPRECATED: Use 'name' instead. Application name for backward compatibility"
-  type        = string
-  default     = ""
-}
-
-variable "public_subnet_ciders" {
-  description = "DEPRECATED: Use 'public_subnets' instead"
-  type        = list(string)
-  default     = []
-}
-
-variable "private_subnet_ciders" {
-  description = "DEPRECATED: Use 'private_subnets' instead"
-  type        = list(string)
-  default     = []
-}
