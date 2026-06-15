@@ -18,21 +18,31 @@ output "bastion_security_group_id" {
   value       = aws_security_group.bastion.id
 }
 
+output "ssm_session_policy_arn" {
+  description = "ARN of the scoped 'start SSM session' policy (enable_ssm). Attach to the lead's IAM user/role."
+  value       = var.enable_ssm ? aws_iam_policy.ssm_session[0].arn : null
+}
+
+output "ssm_start_session_command" {
+  description = "Command to open a shell on the bastion via SSM (enable_ssm). Add --region/--profile as needed."
+  value       = var.enable_ssm ? "aws ssm start-session --target ${aws_instance.bastion.id}" : null
+}
+
 output "elastic_ip" {
   description = "Elastic IP address of the bastion host (if created)"
   value       = var.create_eip ? aws_eip.bastion[0].public_ip : null
 }
 
 output "ssh_config" {
-  description = "SSH config entry for the bastion host (add to ~/.ssh/config)"
-  value       = <<-EOT
-# ${var.app_name} Bastion Host
-Host ${var.app_name}-bastion
-    HostName ${var.create_eip ? aws_eip.bastion[0].public_ip : aws_instance.bastion.public_ip}
-    User ec2-user
-    IdentitiesOnly yes
-    IdentityFile ~/.ssh/${var.key_pair_name}.pem
-EOT
+  description = "SSH config entry for the bastion host (add to ~/.ssh/config). Null when enable_ssh = false."
+  value = var.enable_ssh ? join("\n", [
+    "# ${var.app_name} Bastion Host",
+    "Host ${var.app_name}-bastion",
+    "    HostName ${var.create_eip ? aws_eip.bastion[0].public_ip : aws_instance.bastion.public_ip}",
+    "    User ec2-user",
+    "    IdentitiesOnly yes",
+    "    IdentityFile ~/.ssh/${var.key_pair_name}.pem",
+  ]) : null
 }
 
 output "scheduler_enabled" {

@@ -25,13 +25,15 @@ variable "instance_type" {
 }
 
 variable "key_pair_name" {
-  description = "Name of the EC2 Key Pair for SSH access"
+  description = "Name of the EC2 Key Pair for SSH access. Only required when enable_ssh = true."
   type        = string
+  default     = null
 }
 
 variable "allowed_ssh_cidr_blocks" {
-  description = "List of CIDR blocks allowed to SSH to the bastion host"
+  description = "List of CIDR blocks allowed to SSH to the bastion host. Only used when enable_ssh = true."
   type        = list(string)
+  default     = []
 }
 
 variable "create_eip" {
@@ -79,4 +81,47 @@ variable "scheduler_log_retention_in_days" {
     condition     = var.scheduler_log_retention_in_days >= 1 && var.scheduler_log_retention_in_days <= 3653
     error_message = "scheduler_log_retention_in_days must be between 1 and 3653 days."
   }
+}
+
+# ----------------------------------------------------------------------------
+# Access mode — SSH and/or SSM Session Manager
+# Defaults keep the historical behaviour (SSH on, SSM off) so existing callers
+# are unaffected.
+# ----------------------------------------------------------------------------
+variable "enable_ssh" {
+  description = "Open inbound port 22 and use the key pair for classic SSH access."
+  type        = bool
+  default     = true
+}
+
+variable "enable_ssm" {
+  description = <<-EOT
+    Attach an IAM role so the host is reachable via SSM Session Manager
+    (no inbound port, IAM-gated, audited in CloudTrail). Can be combined with
+    enable_ssh. NOTE: the host must be able to reach the SSM service endpoints —
+    either a public IP + Internet Gateway (set associate_public_ip_address /
+    create_eip), a NAT gateway, or SSM interface VPC endpoints.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "associate_public_ip_address" {
+  description = <<-EOT
+    Force-assign (true) or disable (false) a public IP. null = use the subnet's
+    default. Useful for an SSM-only host with no EIP that still needs outbound
+    internet to reach the SSM endpoints.
+  EOT
+  type        = bool
+  default     = null
+}
+
+variable "ssm_session_iam_role_names" {
+  description = <<-EOT
+    Names of existing IAM roles to attach the scoped "start SSM session to this
+    bastion" policy to. For IAM users, attach the output policy ARN manually.
+    Only used when enable_ssm = true.
+  EOT
+  type        = list(string)
+  default     = []
 }

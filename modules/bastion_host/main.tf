@@ -4,12 +4,15 @@ resource "aws_security_group" "bastion" {
   description = "Security group for bastion host"
   vpc_id      = var.vpc_id
 
-  # SSH access from specified IP addresses
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = var.allowed_ssh_cidr_blocks
+  # SSH access from specified IP addresses (only when enable_ssh = true)
+  dynamic "ingress" {
+    for_each = var.enable_ssh ? [1] : []
+    content {
+      from_port   = 22
+      to_port     = 22
+      protocol    = "tcp"
+      cidr_blocks = var.allowed_ssh_cidr_blocks
+    }
   }
 
   # All outbound traffic
@@ -37,13 +40,21 @@ locals {
 
 # EC2 instance for bastion host
 resource "aws_instance" "bastion" {
-  ami                    = var.ami_id
-  instance_type          = var.instance_type
-  key_name               = var.key_pair_name
-  subnet_id              = var.subnet_id
-  vpc_security_group_ids = [aws_security_group.bastion.id]
+  ami                         = var.ami_id
+  instance_type               = var.instance_type
+  key_name                    = var.enable_ssh ? var.key_pair_name : null
+  subnet_id                   = var.subnet_id
+  vpc_security_group_ids      = [aws_security_group.bastion.id]
+  associate_public_ip_address = var.associate_public_ip_address
+  iam_instance_profile        = var.enable_ssm ? aws_iam_instance_profile.ssm[0].name : null
 
   user_data_base64 = local.user_data
+
+  # Require IMDSv2
+  metadata_options {
+    http_endpoint = "enabled"
+    http_tokens   = "required"
+  }
 
   # Enable detailed monitoring
   monitoring = false
@@ -61,6 +72,82 @@ resource "aws_instance" "bastion" {
     # Auto-generated unique tag for EventBridge + Lambda scheduler
     "BastionScheduler" = var.enable_scheduler ? local.scheduler_tag_value : "disabled"
   })
+}
+
+# ----------------------------------------------------------------------------
+# SSM Session Manager access (enable_ssm = true)
+# Instance role + AmazonSSMManagedInstanceCore so the host registers with SSM.
+# No inbound port is needed — the agent connects outbound to the SSM endpoints.
+# ----------------------------------------------------------------------------
+data "aws_iam_policy_document" "ssm_assume" {
+  count = var.enable_ssm ? 1 : 0
+
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "ssm" {
+  count              = var.enable_ssm ? 1 : 0
+  name               = "${var.app_name}-bastion-ssm-role"
+  assume_role_policy = data.aws_iam_policy_document.ssm_assume[0].json
+  tags               = merge(var.tags, { Name = "${var.app_name}-bastion-ssm-role" })
+}
+
+resource "aws_iam_role_policy_attachment" "ssm_core" {
+  count      = var.enable_ssm ? 1 : 0
+  role       = aws_iam_role.ssm[0].name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "ssm" {
+  count = var.enable_ssm ? 1 : 0
+  name  = "${var.app_name}-bastion-ssm-profile"
+  role  = aws_iam_role.ssm[0].name
+}
+
+# Scoped policy: lets a principal start an SSM session to THIS bastion only.
+data "aws_iam_policy_document" "ssm_session" {
+  count = var.enable_ssm ? 1 : 0
+
+  statement {
+    sid       = "StartSessionToThisBastionOnly"
+    effect    = "Allow"
+    actions   = ["ssm:StartSession"]
+    resources = [aws_instance.bastion.arn]
+  }
+
+  statement {
+    sid       = "AllowSessionDocument"
+    effect    = "Allow"
+    actions   = ["ssm:StartSession"]
+    resources = ["arn:aws:ssm:*::document/SSM-SessionManagerRunShell"]
+  }
+
+  statement {
+    sid       = "ManageOwnSession"
+    effect    = "Allow"
+    actions   = ["ssm:TerminateSession", "ssm:ResumeSession"]
+    resources = ["arn:aws:ssm:*:*:session/$${aws:username}-*"]
+  }
+}
+
+resource "aws_iam_policy" "ssm_session" {
+  count       = var.enable_ssm ? 1 : 0
+  name        = "${var.app_name}-bastion-ssm-session"
+  description = "Allow starting an SSM Session Manager session to the ${var.app_name} bastion"
+  policy      = data.aws_iam_policy_document.ssm_session[0].json
+  tags        = merge(var.tags, { Name = "${var.app_name}-bastion-ssm-session" })
+}
+
+resource "aws_iam_role_policy_attachment" "ssm_session" {
+  for_each   = var.enable_ssm ? toset(var.ssm_session_iam_role_names) : toset([])
+  role       = each.value
+  policy_arn = aws_iam_policy.ssm_session[0].arn
 }
 
 # IAM role for Lambda function to start/stop EC2 instances

@@ -53,6 +53,19 @@ variable "private_subnet_cidrs" {
   type        = list(string)
 }
 
+variable "split_tunnel_destination_cidrs" {
+  description = <<-EOT
+    Extra (non-VPC) CIDRs that VPN clients are allowed to reach — each one is
+    both authorized and routed. VPC CIDRs are handled separately via
+    private_subnet_cidrs (auto-routed by the subnet association). Internet
+    traffic and any on-prem range NOT listed here (e.g. the customer production
+    network) are intentionally unreachable from the VPN.
+    Example: ["192.168.0.0/24", "169.254.169.253/32"]  # on-prem DB + DNS resolver
+  EOT
+  type        = list(string)
+  default     = []
+}
+
 variable "tags" {
   description = "Tags to apply to all resources"
   type        = map(string)

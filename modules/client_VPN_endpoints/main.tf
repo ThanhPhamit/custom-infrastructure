@@ -235,14 +235,16 @@ resource "aws_ec2_client_vpn_authorization_rule" "vpc_access" {
   description            = "Allow access to private subnet ${each.value}"
 }
 
-# Allow VPN clients to access the internet (0.0.0.0/0)
-# Required for split-tunnel or full-tunnel internet access
-resource "aws_ec2_client_vpn_authorization_rule" "internet_access" {
-  count                  = var.enable_vpn_associations ? 1 : 0
+# Allow VPN clients to reach ONLY the explicitly listed non-VPC destinations
+# (e.g. the on-prem DB and the VPC DNS resolver). There is intentionally NO
+# 0.0.0.0/0 rule: with split-tunnel this keeps dev internet on the local link
+# and makes any unlisted on-prem range (e.g. customer production) unreachable.
+resource "aws_ec2_client_vpn_authorization_rule" "split_tunnel_access" {
+  for_each               = var.enable_vpn_associations ? toset(var.split_tunnel_destination_cidrs) : toset([])
   client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn.id
-  target_network_cidr    = "0.0.0.0/0"
+  target_network_cidr    = each.value
   authorize_all_groups   = true
-  description            = "Allow access to internet"
+  description            = "Allow access to ${each.value}"
 }
 
 
@@ -253,17 +255,18 @@ resource "aws_ec2_client_vpn_authorization_rule" "internet_access" {
 # Routes define HOW traffic gets directed from VPN clients to destinations
 # Each route specifies a destination CIDR and which subnet to route through
 
-# Internet route (0.0.0.0/0) - Routes all internet traffic through associated subnets
-# WARNING: This only works if subnets have internet connectivity:
-#   - Public subnets: Direct route via Internet Gateway
-#   - Private subnets: Route via NAT Gateway (requires NAT setup)
-# Traffic flow: VPN Client → Subnet → Internet Gateway/NAT Gateway → Internet
-resource "aws_ec2_client_vpn_route" "internet_route" {
-  for_each               = var.enable_vpn_associations ? toset(var.subnet_ids) : []
+# One route per (destination CIDR x associated subnet). VPC CIDRs are already
+# routed automatically by the subnet association, so only the extra
+# split-tunnel destinations need explicit routes here.
+resource "aws_ec2_client_vpn_route" "split_tunnel_route" {
+  for_each = var.enable_vpn_associations ? {
+    for pair in setproduct(var.split_tunnel_destination_cidrs, var.subnet_ids) :
+    "${pair[0]}_${pair[1]}" => { cidr = pair[0], subnet = pair[1] }
+  } : {}
   client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn.id
-  destination_cidr_block = "0.0.0.0/0"
-  target_vpc_subnet_id   = each.value
-  description            = "Route to internet via subnet ${each.value}"
+  destination_cidr_block = each.value.cidr
+  target_vpc_subnet_id   = each.value.subnet
+  description            = "Route to ${each.value.cidr} via subnet ${each.value.subnet}"
 
   depends_on = [aws_ec2_client_vpn_network_association.vpn_subnet]
 }
@@ -286,75 +289,4 @@ resource "aws_cloudwatch_log_group" "vpn_logs" {
 resource "aws_cloudwatch_log_stream" "vpn_logs" {
   name           = "${var.app_name}-client-vpn-endpoint-logs"
   log_group_name = aws_cloudwatch_log_group.vpn_logs.name
-}
-
-
-# VPN for TCP traffic
-resource "aws_ec2_client_vpn_endpoint" "vpn_tcp" {
-  description            = "Client VPN Endpoint TCP for ${var.app_name}"
-  server_certificate_arn = aws_acm_certificate.vpn_cert.arn
-  client_cidr_block      = "172.24.4.0/22"
-  vpc_id                 = var.vpc_id
-  split_tunnel           = var.split_tunnel
-
-  authentication_options {
-    type                       = "certificate-authentication"
-    root_certificate_chain_arn = aws_acm_certificate.ca_cert.arn
-  }
-
-  transport_protocol = "tcp"
-  security_group_ids = [aws_security_group.vpn.id]
-
-  connection_log_options {
-    enabled = false
-  }
-
-  dns_servers = ["169.254.169.253"]
-
-  session_timeout_hours = 8
-
-  client_login_banner_options {
-    enabled     = true
-    banner_text = "This VPN is for authorized users only. All activities may be monitored and recorded."
-  }
-
-  tags = merge(var.tags, {
-    Name = "client-vpn-${var.vpn_domain}"
-  })
-}
-
-
-resource "aws_ec2_client_vpn_network_association" "vpn_tcp_subnet" {
-  for_each               = var.enable_vpn_associations ? toset(var.subnet_ids) : []
-  client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn_tcp.id
-  subnet_id              = each.value
-}
-
-
-# Create authorization rules for specific private subnet CIDRs
-resource "aws_ec2_client_vpn_authorization_rule" "vpc_tcp_access" {
-  for_each               = var.enable_vpn_associations ? toset(var.private_subnet_cidrs) : []
-  client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn_tcp.id
-  target_network_cidr    = each.value
-  authorize_all_groups   = true
-  description            = "Allow access to private subnet ${each.value}"
-}
-
-
-resource "aws_ec2_client_vpn_route" "internet_route_tcp" {
-  for_each               = var.enable_vpn_associations ? toset(var.subnet_ids) : []
-  client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn_tcp.id
-  destination_cidr_block = "0.0.0.0/0"
-  target_vpc_subnet_id   = each.value
-  description            = "Route to internet via subnet ${each.value}"
-
-  depends_on = [aws_ec2_client_vpn_network_association.vpn_tcp_subnet]
-}
-
-resource "aws_ec2_client_vpn_authorization_rule" "internet_access_tcp" {
-  count                  = var.enable_vpn_associations ? 1 : 0
-  client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn_tcp.id
-  target_network_cidr    = "0.0.0.0/0"
-  authorize_all_groups   = true
-  description            = "Allow access to internet"
 }
