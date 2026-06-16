@@ -46,7 +46,7 @@ data "aws_iam_policy_document" "ecs_task_execution_policy_document" {
     ]
   }
 
-  # Secrets Manager permissions for all secrets (created by this module)
+  # Read the single app secret container (<app>-secrets) holding all keys.
   statement {
     effect = "Allow"
     actions = [
@@ -54,9 +54,7 @@ data "aws_iam_policy_document" "ecs_task_execution_policy_document" {
       "secretsmanager:DescribeSecret"
     ]
     resources = [
-      "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.user.account_id}:secret:${var.app_name}-ecs-*",
-      "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.user.account_id}:secret:${var.app_name}-ses-*",
-      "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.user.account_id}:secret:${var.app_name}-rds-*"
+      "arn:aws:secretsmanager:${var.region}:${data.aws_caller_identity.user.account_id}:secret:${var.app_name}-secrets-*"
     ]
   }
 }

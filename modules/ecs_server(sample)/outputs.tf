@@ -68,51 +68,16 @@ output "lb_listener_tcp_test_arn" {
 }
 
 # =============================================================================
-# Consolidated App Runtime Secret ARN (single secret)
+# App secret container ARN (single secret; value managed out-of-band)
 # =============================================================================
 
+output "app_secrets_arn" {
+  description = "ARN of the app secret container (<app_name>-secrets). Populate its JSON value out-of-band."
+  value       = aws_secretsmanager_secret.app_secrets.arn
+}
+
+# Backward-compatible alias.
 output "app_runtime_secret_arn" {
-  description = "ARN of consolidated app runtime secret in Secrets Manager"
-  value       = aws_secretsmanager_secret.app_runtime_secrets.arn
-}
-
-# Backward-compatible outputs now point to the same consolidated secret ARN.
-output "admin_secret_key_arn" {
-  description = "ARN of the consolidated app runtime secret in Secrets Manager"
-  value       = aws_secretsmanager_secret.app_runtime_secrets.arn
-}
-
-output "jwt_secret_key_arn" {
-  description = "ARN of the consolidated app runtime secret in Secrets Manager"
-  value       = aws_secretsmanager_secret.app_runtime_secrets.arn
-}
-
-output "jwt_refresh_secret_key_arn" {
-  description = "ARN of the consolidated app runtime secret in Secrets Manager"
-  value       = aws_secretsmanager_secret.app_runtime_secrets.arn
-}
-
-output "crypto_secret_key_arn" {
-  description = "ARN of the consolidated app runtime secret in Secrets Manager"
-  value       = aws_secretsmanager_secret.app_runtime_secrets.arn
-}
-
-output "secret_key_arn" {
-  description = "ARN of the consolidated app runtime secret in Secrets Manager"
-  value       = aws_secretsmanager_secret.app_runtime_secrets.arn
-}
-
-output "gmo_site_pass_secret_arn" {
-  description = "ARN of the consolidated app runtime secret in Secrets Manager"
-  value       = aws_secretsmanager_secret.app_runtime_secrets.arn
-}
-
-output "gmo_shop_pass_secret_arn" {
-  description = "ARN of the consolidated app runtime secret in Secrets Manager"
-  value       = aws_secretsmanager_secret.app_runtime_secrets.arn
-}
-
-output "twilio_auth_token_secret_arn" {
-  description = "ARN of the consolidated app runtime secret in Secrets Manager"
-  value       = aws_secretsmanager_secret.app_runtime_secrets.arn
+  description = "Alias of app_secrets_arn (kept for backward compatibility)."
+  value       = aws_secretsmanager_secret.app_secrets.arn
 }

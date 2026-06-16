@@ -344,40 +344,12 @@ variable "inquiry_email_cc_to" {
 # Secrets (Sensitive - passed from outside, stored in AWS Secrets Manager)
 # =============================================================================
 
-# Database
-variable "postgres_password_secret_arn" {
-  type        = string
-  description = "ARN of the database password secret in Secrets Manager"
-}
-
-# GMO Payment
-variable "gmo_site_pass" {
-  type        = string
-  description = "GMO Site Pass (will be stored in Secrets Manager)"
-  sensitive   = true
-  default     = ""
-}
-
-variable "gmo_shop_pass" {
-  type        = string
-  description = "GMO Shop Pass (will be stored in Secrets Manager)"
-  sensitive   = true
-  default     = ""
-}
-
-# SES SMTP
-variable "email_smtp_secret_arn" {
-  type        = string
-  description = "ARN of the SES SMTP credentials secret in Secrets Manager"
-}
-
-# Twilio
-variable "twilio_auth_token" {
-  type        = string
-  description = "Twilio Auth Token (will be stored in Secrets Manager)"
-  sensitive   = true
-  default     = ""
-}
+# NOTE: there are NO secret-value inputs to this module. Every secret —
+# postgres_password, admin_secret_key, secret_key, jwt_secret_key,
+# jwt_refresh_secret_key, crypto_secret_key, gmo_site_pass, gmo_shop_pass,
+# twilio_auth_token, email_host_user, email_host_password — is a key inside the
+# single, manually-managed <app_name>-secrets JSON (uploaded out-of-band).
+# Terraform never sees any secret value.
 
 # -----------------------------------------------------------------------------
 # Auto-generated Secrets (Terraform creates these automatically):

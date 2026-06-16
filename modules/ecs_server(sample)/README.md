@@ -7,7 +7,7 @@ This module deploys an ECS Fargate service with Application Load Balancer (ALB) 
 - ✅ ECS Fargate tasks with customizable CPU/Memory
 - ✅ ALB or NLB integration with health checks
 - ✅ Blue/Green deployment support (CODE_DEPLOY controller)
-- ✅ Automatic secrets management (AWS Secrets Manager)
+- ✅ Secrets via AWS Secrets Manager (container-only; values managed out-of-band, never in Terraform state)
 - ✅ CloudWatch Logs integration
 - ✅ **Flexible network configuration (private or public subnets)**
 - ✅ Auto-scaling ready with target groups
@@ -175,9 +175,8 @@ module "ecs_server" {
   postgres_host = module.rds.db_hostname
   # ... other vars
   
-  # Secrets
-  postgres_password_secret_arn = module.rds.password_secret_arn
-  # ... other secrets
+  # No secret-value inputs. The module creates one "<app_name>-secrets"
+  # container; upload its JSON value out-of-band (see the "Secrets" section).
   
   tags = local.tags
 }
@@ -236,9 +235,8 @@ module "ecs_server" {
   postgres_host = module.rds.db_hostname
   # ... other vars
   
-  # Secrets
-  postgres_password_secret_arn = module.rds.password_secret_arn
-  # ... other secrets
+  # No secret-value inputs. The module creates one "<app_name>-secrets"
+  # container; upload its JSON value out-of-band (see the "Secrets" section).
   
   tags = local.tags
 }
@@ -290,6 +288,44 @@ module "ecs_server" {
 | `ecs_task_role_arn` | Task role ARN |
 | `ecs_task_execution_role_arn` | Task execution role ARN |
 | `ecs_cloudwatch_log_group_name` | CloudWatch log group name |
+
+---
+
+## Secrets
+
+This module follows a **single container-only** secret model: Terraform creates
+**one** empty Secrets Manager container `<app_name>-secrets` and grants the task
+read access — but **never generates or stores any secret value**. Every secret
+the app needs is a key inside that one JSON, managed out-of-band, so nothing
+sensitive ends up in Terraform state, tfvars or git.
+
+### The one secret's JSON keys
+
+All read from `<app_name>-secrets` via `valueFrom = "<arn>:<key>::"`:
+
+```
+admin_secret_key, secret_key, jwt_secret_key, jwt_refresh_secret_key,
+crypto_secret_key, postgres_password, gmo_site_pass, gmo_shop_pass,
+twilio_auth_token, email_host_user, email_host_password
+```
+
+> There are **no secret-value inputs** to this module (no `postgres_password_secret_arn`,
+> no `email_smtp_secret_arn`, etc.) — everything lives in the single JSON.
+
+### Populate / rotate the secret (out-of-band)
+
+1. Copy the template `secrets.example.json` (in this module) and fill in real
+   values — generate with e.g. `openssl rand -base64 48` (use `... -base64 32`
+   for `crypto_secret_key`). Save as a **gitignored** file (e.g.
+   `secrets/<app_name>.json`), never commit it.
+2. Upload to the container:
+   - Console: secret `<app_name>-secrets` → **Retrieve secret value → Edit** → paste → Save, **or**
+   - CLI: `aws secretsmanager put-secret-value --secret-id <app_name>-secrets --secret-string file://secrets/<app_name>.json`
+3. **Do this before the first deploy** — a missing key makes the ECS task fail at start.
+4. To rotate: edit the value, then trigger a new CodeDeploy release (ECS reads secrets at task start).
+
+> Terraform `apply` only ensures the container exists; it will not touch the
+> value. `terraform plan` therefore never shows secret values.
 
 ---
 
@@ -377,7 +413,7 @@ CannotPullContainerError: Error response from daemon
 2. **Dev/Demo:** Use public subnets with `assign_public_ip = true` to save costs
 3. **Security:** Always restrict Security Group ingress to ALB/NLB only
 4. **Monitoring:** Enable CloudWatch Container Insights for performance monitoring
-5. **Secrets:** Never hardcode secrets - always use AWS Secrets Manager
+5. **Secrets:** Never hardcode secrets. This module creates only the secret *container*; values are uploaded out-of-band so nothing sensitive lands in Terraform state (see the "Secrets" section).
 6. **Scaling:** Configure auto-scaling based on CloudWatch metrics
 7. **Health Checks:** Implement comprehensive health check endpoints
 

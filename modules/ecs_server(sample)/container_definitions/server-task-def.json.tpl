@@ -85,8 +85,8 @@
       { "name": "GMO_SITE_PASS", "valueFrom": "${app_runtime_secret_arn}:gmo_site_pass::" },
       { "name": "GMO_SHOP_PASS", "valueFrom": "${app_runtime_secret_arn}:gmo_shop_pass::" },
       { "name": "TWILIO_AUTH_TOKEN", "valueFrom": "${app_runtime_secret_arn}:twilio_auth_token::" },
-      { "name": "EMAIL_HOST_USER", "valueFrom": "${email_smtp_secret_arn}:username::" },
-      { "name": "EMAIL_HOST_PASSWORD", "valueFrom": "${email_smtp_secret_arn}:password::" }
+      { "name": "EMAIL_HOST_USER", "valueFrom": "${app_runtime_secret_arn}:email_host_user::" },
+      { "name": "EMAIL_HOST_PASSWORD", "valueFrom": "${app_runtime_secret_arn}:email_host_password::" }
     ],
     "portMappings": [
       {
