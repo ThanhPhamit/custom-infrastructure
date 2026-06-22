@@ -39,14 +39,41 @@ resource "aws_s3_bucket_lifecycle_configuration" "this" {
   }
 }
 
-# Block all public access - only access via pre-signed URLs
+# Block public access. ACLs are always blocked (ownership is BucketOwnerEnforced, so
+# ACLs are unused anyway). When public_read is enabled, public *bucket policies* are
+# allowed so the policy below can grant anonymous read of web assets (static/media).
 resource "aws_s3_bucket_public_access_block" "this" {
   bucket = aws_s3_bucket.this.id
 
   block_public_acls       = true
-  block_public_policy     = true
+  block_public_policy     = !var.public_read
   ignore_public_acls      = true
-  restrict_public_buckets = true
+  restrict_public_buckets = !var.public_read
+}
+
+# Optional anonymous read of objects (public web assets like static/media). Granted via
+# a bucket POLICY (not ACLs — ownership is BucketOwnerEnforced). Only enable on buckets
+# that hold exclusively public assets; NEVER stage secrets in a public_read bucket.
+data "aws_iam_policy_document" "public_read" {
+  count = var.public_read ? 1 : 0
+  statement {
+    sid       = "PublicReadGetObject"
+    effect    = "Allow"
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.this.arn}/*"]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "public_read" {
+  count  = var.public_read ? 1 : 0
+  bucket = aws_s3_bucket.this.id
+  policy = data.aws_iam_policy_document.public_read[0].json
+
+  depends_on = [aws_s3_bucket_public_access_block.this]
 }
 
 # CORS configuration for frontend to upload/download via pre-signed URLs

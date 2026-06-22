@@ -56,3 +56,9 @@ variable "abort_incomplete_multipart_days" {
   type        = number
   default     = 7
 }
+
+variable "public_read" {
+  description = "Allow anonymous (public) s3:GetObject via a bucket policy — for buckets that serve ONLY public web assets (static/media). Relaxes block_public_policy/restrict_public_buckets. NEVER enable on a bucket that also stores secrets."
+  type        = bool
+  default     = false
+}

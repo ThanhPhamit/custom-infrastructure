@@ -18,14 +18,9 @@ output "smtp_username" {
   value       = length(aws_iam_access_key.ses_smtp_access_key) > 0 ? aws_iam_access_key.ses_smtp_access_key[0].id : null
 }
 
-output "smtp_password_secret_arn" {
-  description = "ARN of the secret containing SMTP password"
-  value       = length(aws_secretsmanager_secret.ses_smtp_password) > 0 ? aws_secretsmanager_secret.ses_smtp_password[0].arn : null
-}
-
-output "smtp_username_secret_arn" {
-  description = "ARN of the secret containing SMTP username"
-  value       = length(aws_secretsmanager_secret.ses_smtp_username) > 0 ? aws_secretsmanager_secret.ses_smtp_username[0].arn : null
+output "smtp_secret_arn" {
+  description = "ARN of the secret containing SMTP credentials as JSON {username,password}"
+  value       = length(aws_secretsmanager_secret.ses_smtp) > 0 ? aws_secretsmanager_secret.ses_smtp[0].arn : null
 }
 
 output "domain_identity_arn" {

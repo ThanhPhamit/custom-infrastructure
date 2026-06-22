@@ -92,44 +92,27 @@ resource "random_uuid" "ses_smtp_password_uuid" {
   count = var.create_smtp_user ? 1 : 0
 }
 
-# Store SMTP password in AWS Secrets Manager
-resource "aws_secretsmanager_secret" "ses_smtp_password" {
+# Store SMTP credentials (username + password) in ONE Secrets Manager secret as JSON.
+resource "aws_secretsmanager_secret" "ses_smtp" {
   count       = var.create_smtp_user ? 1 : 0
-  name        = "${var.app_name}-ses-smtp-password-${substr(random_uuid.ses_smtp_password_uuid[0].result, 0, 2)}"
-  description = "SES SMTP password for ${var.app_name}"
+  name        = "${var.app_name}-ses-smtp-${substr(random_uuid.ses_smtp_password_uuid[0].result, 0, 2)}"
+  description = "SES SMTP credentials (JSON {username,password}) for ${var.app_name}"
 
   tags = merge(
     var.tags,
     {
-      Name = "${var.app_name}-ses-smtp-password-${substr(random_uuid.ses_smtp_password_uuid[0].result, 0, 2)}"
+      Name = "${var.app_name}-ses-smtp-${substr(random_uuid.ses_smtp_password_uuid[0].result, 0, 2)}"
     }
   )
 }
 
-resource "aws_secretsmanager_secret_version" "ses_smtp_password" {
-  count         = var.create_smtp_user ? 1 : 0
-  secret_id     = aws_secretsmanager_secret.ses_smtp_password[0].id
-  secret_string = aws_iam_access_key.ses_smtp_access_key[0].ses_smtp_password_v4
-}
-
-# Store SMTP username in AWS Secrets Manager
-resource "aws_secretsmanager_secret" "ses_smtp_username" {
-  count       = var.create_smtp_user ? 1 : 0
-  name        = "${var.app_name}-ses-smtp-username-${substr(random_uuid.ses_smtp_password_uuid[0].result, 0, 2)}"
-  description = "SES SMTP username for ${var.app_name}"
-
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.app_name}-ses-smtp-username-${substr(random_uuid.ses_smtp_password_uuid[0].result, 0, 2)}"
-    }
-  )
-}
-
-resource "aws_secretsmanager_secret_version" "ses_smtp_username" {
-  count         = var.create_smtp_user ? 1 : 0
-  secret_id     = aws_secretsmanager_secret.ses_smtp_username[0].id
-  secret_string = aws_iam_access_key.ses_smtp_access_key[0].id
+resource "aws_secretsmanager_secret_version" "ses_smtp" {
+  count     = var.create_smtp_user ? 1 : 0
+  secret_id = aws_secretsmanager_secret.ses_smtp[0].id
+  secret_string = jsonencode({
+    username = aws_iam_access_key.ses_smtp_access_key[0].id
+    password = aws_iam_access_key.ses_smtp_access_key[0].ses_smtp_password_v4
+  })
 }
 
 # SES Email Templates
