@@ -11,7 +11,7 @@
 | `bastion_host` | **Bastion-only** EC2 (SG = 22 only; instance profile SSM-only) + start/stop scheduler | app_name, ami_id, vpc_id, subnet_id | bastion_instance_id, bastion_public_ip, ssh_config |
 | `chatbot_slack` | AWS Chatbot → Slack channel | app_name, slack_workspace_id, slack_channel_id, slack_channel_name | chatbot_sns_topic_arn |
 | `client_VPN_endpoints` | AWS Client VPN endpoint + associations | app_name, vpn_domain, vpc_id, subnet_ids, private_subnet_cidrs, enable_vpn_associations | — |
-| `cloudfront` | CloudFront distribution in front of an ALB | app_name, alb_domain_name | cloudfront_domain_name, cloudfront_distribution_id |
+| `cloudfront` | CloudFront distribution in front of an ALB (+ optional origin mTLS via `origin_client_certificate_arn`) | app_name, alb_domain_name | cloudfront_domain_name, cloudfront_distribution_id |
 | `cloudwatch_alarm_ecs` | CloudWatch alarms for ECS + log error patterns | cw_alarm_ecs_log_error_patterns, ecs_cloudwatch_log_group_name, lb_id | — |
 | `cloudwatch_alarm_elasticache_server_based` | CloudWatch alarms for ElastiCache nodes | app_name, aws_region, cache_nodes, chatbot_notice_sns_topic_arn, chatbot_alert_sns_topic_arn | — |
 | `cloudwatch_alarm_rds_instance` | CloudWatch alarms for an RDS instance | (all defaulted) | — |

@@ -187,3 +187,9 @@ variable "web_acl_arn" {
   type        = string
   default     = ""
 }
+
+variable "origin_client_certificate_arn" {
+  description = "Optional origin mTLS: ACM certificate ARN (us-east-1, EKU clientAuth) that CloudFront presents to the custom origin on every origin TLS handshake. Empty string disables origin mTLS (default; fully backward-compatible). Requires aws provider >= 6.51.0."
+  type        = string
+  default     = ""
+}

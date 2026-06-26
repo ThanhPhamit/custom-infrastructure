@@ -10,6 +10,16 @@ resource "aws_cloudfront_distribution" "main" {
       https_port             = 443
       origin_protocol_policy = "https-only"
       origin_ssl_protocols   = ["TLSv1.2"]
+
+      # Optional origin mTLS — CloudFront presents this ACM client cert (us-east-1, EKU
+      # clientAuth) to the origin on every origin TLS handshake; the origin verifies it.
+      # Empty arn = disabled (default, fully backward-compatible). Requires aws >= 6.51.0.
+      dynamic "origin_mtls_config" {
+        for_each = var.origin_client_certificate_arn != "" ? [1] : []
+        content {
+          client_certificate_arn = var.origin_client_certificate_arn
+        }
+      }
     }
   }
 

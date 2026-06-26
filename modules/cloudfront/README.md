@@ -229,6 +229,7 @@ module "cloudfront_api" {
 | alb_domain_name           | ALB DNS name (origin)                      | `string`       | n/a                |   yes    |
 | custom_domain             | Custom domain for CloudFront               | `string`       | `""`               |    no    |
 | acm_certificate_arn       | ACM certificate ARN (must be in us-east-1) | `string`       | `""`               |    no    |
+| origin_client_certificate_arn | Origin mTLS: ACM client-cert ARN (us-east-1, EKU clientAuth) CloudFront presents to the origin. `""` disables. Needs aws >= 6.51.0 | `string` | `""`     |    no    |
 | route_53_zone_id          | Route 53 hosted zone ID                    | `string`       | `""`               |    no    |
 | forwarded_headers         | Headers to forward to origin               | `list(string)` | Default headers    |    no    |
 | min_ttl                   | Minimum TTL for cache                      | `number`       | `0`                |    no    |

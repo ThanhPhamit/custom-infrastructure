@@ -3,8 +3,11 @@ terraform {
 
   required_providers {
     aws = {
-      source  = "hashicorp/aws"
-      version = ">= 4.0"
+      source = "hashicorp/aws"
+      # Floor raised 4.0 -> 6.51.0: the optional origin_mtls_config block (origin mTLS,
+      # var.origin_client_certificate_arn) is only in the provider schema from v6.51.0
+      # (PR #46421), and a dynamic block must exist in the schema even when unused.
+      version = ">= 6.51.0"
     }
     local = {
       source  = "hashicorp/local"
