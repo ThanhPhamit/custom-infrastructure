@@ -32,3 +32,13 @@ output "data_volume_id" {
   description = "ID of the optional data volume (null when create_data_volume = false)."
   value       = var.create_data_volume ? aws_ebs_volume.data[0].id : null
 }
+
+output "instance_role_arn" {
+  description = "ARN of the in-module instance role (null unless enable_ssm)."
+  value       = var.enable_ssm ? aws_iam_role.ssm[0].arn : null
+}
+
+output "instance_role_name" {
+  description = "Name of the in-module instance role (null unless enable_ssm)."
+  value       = var.enable_ssm ? aws_iam_role.ssm[0].name : null
+}

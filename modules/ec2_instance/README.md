@@ -85,3 +85,20 @@ module "db" {
 
 `instance_id`, `instance_arn`, `private_ip`, `public_ip` (EIP if created), `availability_zone`,
 `security_group_id`, `data_volume_id`.
+
+## 2026-07-02 update — access method is an option, richer egress
+
+- **`enable_ssm`** (bool, default `false`): creates an instance role
+  (`AmazonSSMManagedInstanceCore`) + instance profile in-module — SSM Session Manager access with
+  no SSH/key/ingress. Mutually exclusive with `iam_instance_profile`. Optional
+  **`instance_role_policy_json`** attaches one caller-supplied inline policy (e.g. a scoped
+  `secretsmanager:GetSecretValue`). Access method is a *configuration* of this module — SSH via
+  `key_name`, SSM via `enable_ssm` — not a separate module.
+- **`egress_rules`** entries now also accept **`security_groups`** (e.g. interface-endpoint SGs)
+  and **`prefix_list_ids`** (e.g. an S3 gateway endpoint for dnf/apt in a no-internet VPC).
+  When using them without CIDRs, set `cidr_blocks = []` explicitly (omitting keeps the historical
+  `0.0.0.0/0` default).
+- **⚠️ SG `name` → `name_prefix` (one-time migration):** a static name + create_before_destroy
+  deadlocked every SG replacement (`InvalidGroup.Duplicate`). Existing consumers will see a
+  **one-time SG replacement** on their next apply — survivable via CBD ordering, but roll it
+  deliberately (not mixed into an unrelated change).

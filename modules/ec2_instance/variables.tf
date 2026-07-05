@@ -62,7 +62,25 @@ variable "create_eip" {
 }
 
 variable "iam_instance_profile" {
-  description = "Name of an IAM instance profile to attach (grants the app/host its AWS access via IMDSv2). null = none."
+  description = "Name of an EXISTING IAM instance profile to attach (grants the app/host its AWS access via IMDSv2). null = none. Mutually exclusive with enable_ssm (which creates one in-module)."
+  type        = string
+  default     = null
+}
+
+variable "enable_ssm" {
+  description = "Create an instance role (AmazonSSMManagedInstanceCore) + instance profile in-module so the box is managed via SSM Session Manager — no SSH/key/ingress needed. Mutually exclusive with iam_instance_profile. In a no-internet VPC, pair with ssm/ssmmessages/ec2messages interface endpoints."
+  type        = bool
+  default     = false
+}
+
+variable "attach_instance_role_policy" {
+  description = "Whether to attach instance_role_policy_json to the in-module role. A separate bool because rendered policy JSON is typically unknown at plan time (it references other resources' ARNs) and unknown values cannot drive count."
+  type        = bool
+  default     = false
+}
+
+variable "instance_role_policy_json" {
+  description = "Inline IAM policy JSON attached to the in-module instance role (e.g. a scoped secretsmanager:GetSecretValue). Only used when enable_ssm = true AND attach_instance_role_policy = true."
   type        = string
   default     = null
 }
@@ -94,13 +112,20 @@ variable "egress_rules" {
     Port-restricted egress rules. When non-empty, these REPLACE the default
     all-protocol egress — use to lock outbound to only what the box needs
     (e.g. a DB box: 80/443 for apt + AWS APIs, 53 for DNS). Empty = allow all.
+    Destinations per rule: CIDRs (default 0.0.0.0/0 when omitted), and/or
+    security_groups (e.g. interface-endpoint SGs), and/or prefix_list_ids
+    (e.g. an S3 gateway endpoint for repos in a no-internet VPC).
+    NOTE: when using security_groups/prefix_list_ids only, set cidr_blocks = []
+    explicitly — omitting it keeps the historical 0.0.0.0/0 default.
   EOT
   type = list(object({
-    description = string
-    from_port   = number
-    to_port     = number
-    protocol    = optional(string, "tcp")
-    cidr_blocks = optional(list(string), ["0.0.0.0/0"])
+    description     = string
+    from_port       = number
+    to_port         = number
+    protocol        = optional(string, "tcp")
+    cidr_blocks     = optional(list(string), ["0.0.0.0/0"])
+    security_groups = optional(list(string), null)
+    prefix_list_ids = optional(list(string), null)
   }))
   default = []
 }

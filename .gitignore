@@ -123,6 +123,9 @@ fabric.properties
 *.tfstate
 *.tfstate.*
 
+# Partial backend configs — contain account-specific bucket/region/profile
+backend-*.hcl
+
 # Crash log files
 crash.log
 crash.*.log
