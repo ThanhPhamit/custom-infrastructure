@@ -86,4 +86,37 @@ variable "tags" {
   default     = {}
 }
 
+variable "secret_arns" {
+  type        = list(string)
+  description = "Additional Secrets Manager secret ARNs the task execution role may read — e.g. externally-managed secrets referenced by the task definition's `secrets` entries (registered by CI/CD via taskdef.json). Combined with the managed app-secret container when `create_app_secret = true`. Empty list (and create_app_secret = false) = no Secrets Manager statement in the execution policy."
+  default     = []
+}
+
+variable "create_app_secret" {
+  type        = bool
+  description = <<-EOT
+    Create a single empty Secrets Manager container named "<app_name>-secrets" for
+    the app's runtime secrets. The container-only model: Terraform creates just the
+    container and grants the task read access — it NEVER generates or reads any
+    secret value, so nothing sensitive is stored in Terraform state. Populate the
+    JSON value out-of-band (console or a gitignored file; see secrets.example.json).
+    The execution role is automatically granted read access to it and its ARN is
+    exposed via the `app_secrets_arn` output for the task definition's `secrets`
+    entries (valueFrom = "<arn>:<key>::"). Leave false to manage secrets purely via
+    `secret_arns`.
+  EOT
+  default     = false
+}
+
+variable "cpu_architecture" {
+  type        = string
+  description = "CPU architecture for the Fargate runtime platform. ARM64 (Graviton) is ~20% cheaper than X86_64 — the container image must be built for the matching architecture."
+  default     = "X86_64"
+
+  validation {
+    condition     = contains(["X86_64", "ARM64"], var.cpu_architecture)
+    error_message = "cpu_architecture must be X86_64 or ARM64."
+  }
+}
+
 # Enviroment variables

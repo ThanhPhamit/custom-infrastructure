@@ -7,8 +7,9 @@ This module deploys an ECS Fargate service with Application Load Balancer (ALB) 
 - ✅ ECS Fargate tasks with customizable CPU/Memory
 - ✅ ALB or NLB integration with health checks
 - ✅ Blue/Green deployment support (CODE_DEPLOY controller)
-- ✅ Automatic secrets management (AWS Secrets Manager)
-- ✅ CloudWatch Logs integration
+- ✅ Optional secrets via AWS Secrets Manager (container-only; values managed out-of-band, never in Terraform state)
+- ✅ CloudWatch Logs integration (configurable retention)
+- ✅ ARM64 (Graviton) or X86_64 Fargate runtime — ARM64 is ~20% cheaper
 - ✅ **Flexible network configuration (private or public subnets)**
 - ✅ Auto-scaling ready with target groups
 - ✅ ECR integration for container images
@@ -31,7 +32,7 @@ Internet → IGW → ALB (Public Subnet) → ECS Tasks (Private Subnet) → NAT 
 **Configuration:**
 ```hcl
 module "ecs_server" {
-  source = "../../modules/ecs_server"
+  source = "../../modules/ecs"
   
   # Network - PRIVATE subnets (with NAT Gateway)
   subnet_ids       = module.vpc.private_subnet_ids
@@ -70,7 +71,7 @@ Internet → IGW → ALB (Public Subnet) → ECS Tasks (Public Subnet with Publi
 **Configuration:**
 ```hcl
 module "ecs_server" {
-  source = "../../modules/ecs_server"
+  source = "../../modules/ecs"
   
   # Network - PUBLIC subnets (no NAT Gateway)
   subnet_ids       = module.vpc.public_subnet_ids
@@ -137,7 +138,7 @@ module "vpc" {
 
 # ECS Server in Private Subnets
 module "ecs_server" {
-  source = "../../modules/ecs_server"
+  source = "../../modules/ecs"
   
   app_name = "prod-my-app"
   region   = "ap-northeast-1"
@@ -169,16 +170,13 @@ module "ecs_server" {
   desired_task_count = 2
   task_cpu_size      = 512
   task_memory_size   = 1024
-  
-  # Environment variables
-  environment = "PRODUCTION"
-  postgres_host = module.rds.db_hostname
-  # ... other vars
-  
-  # Secrets
-  postgres_password_secret_arn = module.rds.password_secret_arn
-  # ... other secrets
-  
+  cpu_architecture   = "ARM64" # Graviton — ~20% cheaper (image must match)
+
+  # Secrets — create the "<app_name>-secrets" container; populate its value
+  # out-of-band (see the "Secrets" section). Non-sensitive env vars and the
+  # secret `valueFrom` wiring are set in CI/CD's taskdef.json at deploy time.
+  create_app_secret = true
+
   tags = local.tags
 }
 ```
@@ -198,7 +196,7 @@ module "vpc" {
 
 # ECS Server in Public Subnets
 module "ecs_server" {
-  source = "../../modules/ecs_server"
+  source = "../../modules/ecs"
   
   app_name = "demo-my-app"
   region   = "ap-northeast-1"
@@ -230,16 +228,10 @@ module "ecs_server" {
   desired_task_count = 1
   task_cpu_size      = 256
   task_memory_size   = 512
-  
-  # Environment variables
-  environment = "DEMO"
-  postgres_host = module.rds.db_hostname
-  # ... other vars
-  
-  # Secrets
-  postgres_password_secret_arn = module.rds.password_secret_arn
-  # ... other secrets
-  
+
+  # Secrets — create the "<app_name>-secrets" container; populate out-of-band.
+  create_app_secret = true
+
   tags = local.tags
 }
 ```
@@ -273,7 +265,14 @@ module "ecs_server" {
 | `task_memory_size` | number | 512 | Task memory in MB |
 | `app_health_check_path` | string | `/health` | Health check endpoint |
 | `load_balancer_type` | string | `"alb"` | Load balancer type (`alb` or `nlb`) |
-| `environment` | string | `"PRODUCTION"` | Environment name |
+| `cpu_architecture` | string | `"X86_64"` | Fargate CPU architecture (`X86_64` or `ARM64`). ARM64 (Graviton) is ~20% cheaper — image must match |
+| `cloudwatch_log_retention_in_days` | number | 30 | Days to retain ECS CloudWatch logs (1–3653) |
+| `create_app_secret` | bool | `false` | Create the single `<app_name>-secrets` container (see the "Secrets" section) |
+| `secret_arns` | list(string) | `[]` | Extra externally-managed secret ARNs the execution role may read |
+| `assign_public_ip` | bool | `false` | Assign public IP to tasks (required for public subnets) |
+| `nlb_arn` | string | `null` | NLB ARN (required when `load_balancer_type = "nlb"`) |
+| `acm_certificate_arn` | string | `null` | ACM cert ARN for TLS (required when `load_balancer_type = "nlb"`) |
+| `tags` | map(string) | `{}` | Tags applied to resources |
 
 ---
 
@@ -290,6 +289,48 @@ module "ecs_server" {
 | `ecs_task_role_arn` | Task role ARN |
 | `ecs_task_execution_role_arn` | Task execution role ARN |
 | `ecs_cloudwatch_log_group_name` | CloudWatch log group name |
+| `app_secrets_arn` | ARN of the `<app_name>-secrets` container (null when `create_app_secret = false`) |
+| `lb_listener_tcp_prod_arn` | Prod listener ARN (NLB listener when `nlb`, else the passed-in ALB listener) |
+| `lb_listener_tcp_test_arn` | Test listener ARN (NLB listener when `nlb`, else the passed-in ALB listener) |
+
+---
+
+## Secrets
+
+This module can optionally create **one** empty Secrets Manager container
+`<app_name>-secrets` (set `create_app_secret = true`). The **container-only**
+model: Terraform creates just the container and grants the task read access — it
+**never generates or reads any secret value**, so nothing sensitive lands in
+Terraform state, tfvars, or git. Every secret the app needs is a key inside that
+one JSON, managed out-of-band.
+
+Referencing keys — in the task definition's `secrets` entries (typically wired in
+CI/CD's `taskdef.json`, since the service ignores `task_definition` changes):
+
+```json
+{ "name": "DB_PASSWORD", "valueFrom": "<app_secrets_arn>:db_password::" }
+```
+
+`<app_secrets_arn>` is exposed via the `app_secrets_arn` output. Keys are
+app-defined — add whatever your app reads.
+
+### Populate / rotate the secret (out-of-band)
+
+1. Copy `secrets.example.json` (in this module), fill in real values — generate
+   with e.g. `openssl rand -base64 48`. Save as a **gitignored** file (e.g.
+   `secrets/<app_name>.json`); never commit it.
+2. Upload to the container:
+   - Console: secret `<app_name>-secrets` → **Retrieve secret value → Edit** → paste → Save, **or**
+   - CLI: `aws secretsmanager put-secret-value --secret-id <app_name>-secrets --secret-string file://secrets/<app_name>.json`
+3. **Do this before the first deploy** — a missing key makes the ECS task fail at start.
+4. To rotate: edit the value, then trigger a new CodeDeploy release (ECS reads secrets at task start).
+
+> Terraform `apply` only ensures the container exists; it never touches the value,
+> so `terraform plan` never shows secret values.
+
+**Alternative — externally-managed secrets:** if the secret already exists (e.g.
+the RDS-managed password secret), skip `create_app_secret` and pass its ARN via
+`secret_arns` instead; the execution role is granted read access all the same.
 
 ---
 
@@ -377,7 +418,7 @@ CannotPullContainerError: Error response from daemon
 2. **Dev/Demo:** Use public subnets with `assign_public_ip = true` to save costs
 3. **Security:** Always restrict Security Group ingress to ALB/NLB only
 4. **Monitoring:** Enable CloudWatch Container Insights for performance monitoring
-5. **Secrets:** Never hardcode secrets - always use AWS Secrets Manager
+5. **Secrets:** Never hardcode secrets. Use `create_app_secret` to have the module create only the secret *container*; values are uploaded out-of-band so nothing sensitive lands in Terraform state (see the "Secrets" section).
 6. **Scaling:** Configure auto-scaling based on CloudWatch metrics
 7. **Health Checks:** Implement comprehensive health check endpoints
 

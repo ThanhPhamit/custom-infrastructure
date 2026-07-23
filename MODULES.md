@@ -21,9 +21,8 @@
 | ec2_instance | General EC2 instance with optional EIP, EBS | app_name, ami_id, instance_type, vpc_id, subnet_id | instance_id, private_ip, public_ip, security_group_id, data_volume_id, instance_role_arn +3 more | — |
 | ec2_scheduler | EventBridge Scheduler EC2 start/stop schedules | app_name, instance_arns | start_schedule_arn, stop_schedule_arn, scheduler_role_arn, managed_instance_ids | — |
 | ecr_private_registry | Private ECR repository with lifecycle policy | repository_name | repository_url, repository_arn | — |
-| ecs | ECS Fargate service, blue/green target groups | app_name, region, container_names, container_port, vpc_id, cluster_name +11 more | service_name, task_definition_arn, ecs_task_role_arn, lb_target_group_blue_arn, lb_target_group_green_arn, ecs_security_group_id +10 more | — |
+| ecs | ECS Fargate service, blue/green target groups, optional app-secret container | app_name, region, container_names, container_port, vpc_id, cluster_name +13 more (create_app_secret, secret_arns, cpu_architecture, …) | service_name, task_definition_arn, app_secrets_arn, ecs_task_role_arn, lb_target_group_blue_arn, lb_target_group_green_arn +11 more | — |
 | ecs_cluster | Standalone ECS cluster | app_name | cluster_name, cluster_arn | — |
-| ecs_server(sample) | Sample ECS service wired to app secrets | app_name, region, container_names, container_port, vpc_id, postgres_host +22 more | service_name, task_definition_arn, app_secrets_arn, app_runtime_secret_arn, ecs_task_role_arn, lb_target_group_blue_arn +12 more | — |
 | elasticache_server_based | ElastiCache replication group (node-based) + logs | app_name, vpc_id, number_cache_clusters | primary_endpoint_address, reader_endpoint_address, cache_nodes, security_group_id, log_group_arns, replication_group_id +4 more | — |
 | elasticache_serverless | ElastiCache Serverless cache with security group | app_name, vpc_id, subnet_ids | primary_endpoint, reader_endpoint, security_group_id | — |
 | iam_role | Service-principal IAM role attaching managed policies | name, policy_arns_map, identifier | iam_role_arn, iam_role_name | — |

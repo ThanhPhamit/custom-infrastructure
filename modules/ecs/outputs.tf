@@ -66,3 +66,13 @@ output "lb_listener_tcp_prod_arn" {
 output "lb_listener_tcp_test_arn" {
   value = var.load_balancer_type == "nlb" ? aws_lb_listener.nlb_test[0].arn : var.http_test_listener_arn
 }
+
+# =============================================================================
+# App secret container ARN (single secret; value managed out-of-band)
+# =============================================================================
+# Null when create_app_secret = false. Reference keys from the task definition's
+# `secrets` entries as valueFrom = "<app_secrets_arn>:<key>::".
+output "app_secrets_arn" {
+  description = "ARN of the optional app secret container (<app_name>-secrets). Null when create_app_secret is false. Populate its JSON value out-of-band."
+  value       = var.create_app_secret ? aws_secretsmanager_secret.app_secrets[0].arn : null
+}

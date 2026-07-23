@@ -57,9 +57,29 @@ module "ecs_task_role" {
   )
 }
 
-# SECRETS
-resource "random_uuid" "ecs_secrets_uuid" {}
-# DB host
+# =============================================================================
+# SECRETS — optional single container (no value managed by Terraform)
+# =============================================================================
+# When create_app_secret = true, Terraform creates ONLY the empty secret
+# container "<app_name>-secrets". The JSON value is uploaded out-of-band (console
+# or a gitignored secrets/<app>.json). Terraform never generates or reads a secret
+# value, so NOTHING sensitive is stored in Terraform state.
+#
+# One container holds ALL app secret keys. Reference each key from the task
+# definition's `secrets` entries as valueFrom = "<app_secrets_arn>:<key>::"
+# (typically wired in CI/CD's taskdef.json). The execution role is granted read
+# access automatically (see local.execution_secret_arns in data.tf/locals.tf).
+#
+# Populate the container BEFORE the first deploy — a missing key makes the ECS
+# task fail at start. Rotate by editing the value in the console, then redeploy.
+resource "aws_secretsmanager_secret" "app_secrets" {
+  count = var.create_app_secret ? 1 : 0
+  name  = "${var.app_name}-secrets"
+
+  tags = merge(var.tags, {
+    Name = "${var.app_name}-secrets"
+  })
+}
 
 resource "aws_ecs_task_definition" "task_definition" {
   family = "${var.app_name}-server"
@@ -68,6 +88,11 @@ resource "aws_ecs_task_definition" "task_definition" {
   memory                   = var.task_memory_size
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = var.cpu_architecture
+  }
 
   container_definitions = templatefile("${path.module}/container_definitions/server-task-def.json.tpl", {
     container_name    = var.container_names[0]

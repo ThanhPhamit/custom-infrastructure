@@ -46,15 +46,20 @@ data "aws_iam_policy_document" "ecs_task_execution_policy_document" {
     ]
   }
 
-  # Secrets Manager permissions for your app secrets
-  statement {
-    effect = "Allow"
-    actions = [
-      "secretsmanager:GetSecretValue",
-      "secretsmanager:DescribeSecret"
-    ]
-    resources = [
-    ]
+  # Secrets Manager permissions for the app secrets referenced by the task definition's `secrets`
+  # entries: the optional managed "<app_name>-secrets" container (create_app_secret = true) plus
+  # any externally-managed ARNs passed via var.secret_arns. Emitted only when at least one applies —
+  # a statement with an empty resources list renders an invalid IAM policy.
+  dynamic "statement" {
+    for_each = length(local.execution_secret_arns) > 0 ? [1] : []
+    content {
+      effect = "Allow"
+      actions = [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret"
+      ]
+      resources = local.execution_secret_arns
+    }
   }
 }
 
