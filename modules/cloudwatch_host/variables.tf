@@ -1,0 +1,85 @@
+variable "app_name" {
+  description = "Naming prefix (e.g. myapp-prod)."
+  type        = string
+}
+
+variable "instance_id" {
+  description = "EC2 instance ID the alarms watch (sole metric dimension)."
+  type        = string
+}
+
+variable "sns_topic_arn" {
+  description = "SNS topic ARN for alarm + OK actions (e.g. the chatbot_slack topic)."
+  type        = string
+}
+
+variable "log_group_name" {
+  description = "CloudWatch Logs group name for the app/host (e.g. /myapp/prod/app)."
+  type        = string
+}
+
+variable "log_retention_in_days" {
+  description = "Log retention in days."
+  type        = number
+  default     = 30
+}
+
+variable "log_kms_key_id" {
+  description = "Optional CMK ARN to encrypt the log group. null = default CloudWatch Logs encryption. (Using a CMK requires the key policy to allow the logs service — left null by default to keep the CMK policy simple.)"
+  type        = string
+  default     = null
+}
+
+variable "cpu_threshold" {
+  description = "CPUUtilization % that trips the CPU alarm."
+  type        = number
+  default     = 85
+}
+
+variable "memory_threshold" {
+  description = "CWAgent mem_used_percent that trips the memory alarm (RAM pressure signal)."
+  type        = number
+  default     = 85
+}
+
+variable "disk_threshold" {
+  description = "CWAgent disk_used_percent (root fs) that trips the disk alarm."
+  type        = number
+  default     = 85
+}
+
+variable "create_memory_alarm" {
+  description = "Create the memory alarm. Requires the CloudWatch agent to emit mem_used_percent aggregated to the InstanceId dimension."
+  type        = bool
+  default     = true
+}
+
+variable "create_disk_alarm" {
+  description = "Create the disk alarm. Requires the CloudWatch agent to emit disk_used_percent aggregated to the InstanceId dimension."
+  type        = bool
+  default     = true
+}
+
+variable "cwagent_namespace" {
+  description = "CloudWatch namespace the agent publishes to."
+  type        = string
+  default     = "CWAgent"
+}
+
+variable "period" {
+  description = "Alarm evaluation period in seconds."
+  type        = number
+  default     = 300
+}
+
+variable "evaluation_periods" {
+  description = "Number of periods that must breach before ALARM."
+  type        = number
+  default     = 2
+}
+
+variable "tags" {
+  description = "Tags applied to all resources (merged with Name + ManagedBy)."
+  type        = map(string)
+  default     = {}
+}
