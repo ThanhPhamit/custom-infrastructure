@@ -126,6 +126,12 @@ variable "storage_encrypted" {
   default     = true
 }
 
+variable "kms_key_id" {
+  type        = string
+  description = "Customer-managed KMS key ARN for RDS storage encryption. null = AWS-managed RDS key. When set, encryption is forced on."
+  default     = null
+}
+
 #--------------------------------------------------------------
 # Variables - High Availability & Replica
 #--------------------------------------------------------------

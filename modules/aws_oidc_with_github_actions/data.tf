@@ -28,11 +28,13 @@ data "aws_iam_policy_document" "assume_role" {
       values   = ["sts.amazonaws.com"]
     }
 
+    # Explicit subject_claims (exact, no wildcard) when provided — else the permissive
+    # repo:<org>/<repo>:* default (any branch/PR/tag). Prefer explicit in production.
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
 
-      values = [
+      values = length(var.subject_claims) > 0 ? var.subject_claims : [
         for repo in var.github_repositories : "repo:${var.github_org}/${repo}:*"
       ]
     }

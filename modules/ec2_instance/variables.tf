@@ -149,6 +149,12 @@ variable "root_volume_encrypted" {
   default     = true
 }
 
+variable "root_volume_kms_key_id" {
+  description = "Customer-managed KMS key ARN for root-volume encryption. null = AWS-managed EBS key. When set, encryption is forced on (AWS requires encrypted=true with a CMK)."
+  type        = string
+  default     = null
+}
+
 # ----- optional extra data volume (e.g. /var/lib/mysql) -----
 variable "create_data_volume" {
   description = "Create and attach a separate EBS data volume (clean snapshots/resize for DB data)."
@@ -178,6 +184,12 @@ variable "data_volume_encrypted" {
   description = "Encrypt the data volume at rest (KMS)."
   type        = bool
   default     = true
+}
+
+variable "data_volume_kms_key_id" {
+  description = "Customer-managed KMS key ARN for data-volume encryption. null = AWS-managed EBS key. When set, encryption is forced on (AWS requires encrypted=true with a CMK)."
+  type        = string
+  default     = null
 }
 
 variable "ebs_optimized" {

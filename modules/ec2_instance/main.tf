@@ -144,7 +144,8 @@ resource "aws_instance" "this" {
   root_block_device {
     volume_size           = var.root_volume_size
     volume_type           = var.root_volume_type
-    encrypted             = var.root_volume_encrypted
+    encrypted             = var.root_volume_kms_key_id != null ? true : var.root_volume_encrypted
+    kms_key_id            = var.root_volume_kms_key_id
     delete_on_termination = true
   }
 
@@ -197,7 +198,8 @@ resource "aws_ebs_volume" "data" {
   availability_zone = aws_instance.this.availability_zone
   size              = var.data_volume_size
   type              = var.data_volume_type
-  encrypted         = var.data_volume_encrypted
+  encrypted         = var.data_volume_kms_key_id != null ? true : var.data_volume_encrypted
+  kms_key_id        = var.data_volume_kms_key_id
 
   tags = merge(var.tags, {
     Name      = "${var.app_name}-data"

@@ -36,6 +36,18 @@ variable "github_repositories" {
   type        = list(string)
 }
 
+variable "subject_claims" {
+  description = "Exact GitHub OIDC `sub` claims allowed to assume the role, e.g. [\"repo:org/repo:environment:production\"] or [\"repo:org/repo:ref:refs/heads/main\"]. Empty = the PERMISSIVE default repo:<org>/<repo>:* for every github_repositories entry (any branch/PR/tag). Set explicit claims in production — a bare :* lets any workflow run assume the role."
+  type        = list(string)
+  default     = []
+}
+
+variable "attach_default_permissions_policy" {
+  description = "Attach the module's built-in broad permissions policy (ECR/ECS/CodeDeploy/CloudFront/S3 on Resource:*). Set false to keep the role permission-less and attach your own least-privilege policies from the caller."
+  type        = bool
+  default     = true
+}
+
 variable "iam_role_name" {
   description = "Friendly name of the role. If omitted, Terraform will assign a random, unique name."
   type        = string

@@ -53,16 +53,19 @@ locals {
         apply_method = "immediate"
       },
       {
+        # pending-reboot (not immediate): RDS queues these dynamic params as pending-reboot
+        # and won't reclassify an unchanged value to immediate without a reboot, so declaring
+        # immediate yields a permanent plan diff. pending-reboot matches what AWS stores.
         name         = "log_checkpoints"
         value        = "1"
-        apply_method = "immediate"
+        apply_method = "pending-reboot"
       },
     ],
     var.enable_track_io_timing ? [
       {
         name         = "track_io_timing"
         value        = "1"
-        apply_method = "immediate"
+        apply_method = "pending-reboot"
       }
     ] : [],
     var.enable_log_lock_waits ? [
@@ -280,7 +283,8 @@ resource "aws_db_instance" "primary" {
   allocated_storage     = var.allocated_storage
   max_allocated_storage = var.max_allocated_storage
   storage_type          = var.storage_type
-  storage_encrypted     = var.storage_encrypted
+  storage_encrypted     = var.kms_key_id != null ? true : var.storage_encrypted
+  kms_key_id            = var.kms_key_id
 
   # Network
   vpc_security_group_ids = [aws_security_group.db.id]
@@ -344,7 +348,8 @@ resource "aws_db_instance" "replica" {
   multi_az            = false # Replica cannot be multi-az
   publicly_accessible = false
 
-  storage_encrypted     = var.storage_encrypted
+  storage_encrypted     = var.kms_key_id != null ? true : var.storage_encrypted
+  kms_key_id            = var.kms_key_id
   copy_tags_to_snapshot = true
 
   skip_final_snapshot     = true
