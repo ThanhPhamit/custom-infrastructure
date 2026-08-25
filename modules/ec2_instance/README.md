@@ -71,6 +71,7 @@ module "db" {
 | `instance_type` | e.g. `t3.medium` | — (required) |
 | `vpc_id` / `subnet_id` | Placement | — (required) |
 | `key_name` | EC2 key pair for SSH | `null` |
+| `ssh_user` | Login user for the `ssh_command` / `ssh_config` outputs (AMI-dependent) | `"ec2-user"` |
 | `associate_public_ip_address` | Auto public IP at launch | `false` |
 | `create_eip` | Attach a stable Elastic IP | `false` |
 | `iam_instance_profile` | Instance profile name (app AWS access) | `null` |
@@ -84,7 +85,19 @@ module "db" {
 ## Outputs
 
 `instance_id`, `instance_arn`, `private_ip`, `public_ip` (EIP if created), `availability_zone`,
-`security_group_id`, `data_volume_id`.
+`security_group_id`, `data_volume_id`, `instance_role_arn` / `instance_role_name` (null unless `enable_ssm`).
+
+**How to connect** (each is null when that access method isn't configured):
+
+| Output | Emitted when | Example |
+|--------|--------------|---------|
+| `ssm_start_session_command` | `enable_ssm = true` | `aws ssm start-session --target i-0abc…` |
+| `ssh_command` | `key_name` set **and** a public address (`create_eip` or `associate_public_ip_address`) | `ssh -i ~/.ssh/<key>.pem <ssh_user>@<ip>` |
+| `ssh_config` | same as `ssh_command` | `~/.ssh/config` block |
+
+> SSH outputs assume the private key is at `~/.ssh/<key_name>.pem` and use `ssh_user` for the login
+> name (`ec2-user` for Amazon Linux, `ubuntu` for Ubuntu, …). A private-subnet instance (no public
+> address) has null SSH outputs — reach it via SSM or through a bastion.
 
 ## 2026-07-02 update — access method is an option, richer egress
 

@@ -190,12 +190,19 @@ resource "aws_eip" "this" {
 }
 
 # =============================================================================
-# Optional separate data volume (e.g. mounted at /var/lib/mysql). Lives in the
-# instance's AZ so it can attach. Encrypted by default.
+# Optional separate data volume (e.g. mounted at /var/lib/mysql). Encrypted by default.
+# AZ is derived from the SUBNET (a stable value), NOT aws_instance.this — otherwise
+# replacing the instance marks the volume's availability_zone "known after apply", which
+# force-destroys the data volume (AZ is ForceNew on aws_ebs_volume) → data loss.
 # =============================================================================
+data "aws_subnet" "this" {
+  count = var.create_data_volume ? 1 : 0
+  id    = var.subnet_id
+}
+
 resource "aws_ebs_volume" "data" {
   count             = var.create_data_volume ? 1 : 0
-  availability_zone = aws_instance.this.availability_zone
+  availability_zone = data.aws_subnet.this[0].availability_zone
   size              = var.data_volume_size
   type              = var.data_volume_type
   encrypted         = var.data_volume_kms_key_id != null ? true : var.data_volume_encrypted

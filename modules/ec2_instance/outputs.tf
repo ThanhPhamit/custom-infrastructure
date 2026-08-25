@@ -42,3 +42,38 @@ output "instance_role_name" {
   description = "Name of the in-module instance role (null unless enable_ssm)."
   value       = var.enable_ssm ? aws_iam_role.ssm[0].name : null
 }
+
+# =============================================================================
+# How to connect — SSM (enable_ssm) and/or SSH (key_name + a public address).
+# Each output is null when its access method isn't configured on this instance.
+# =============================================================================
+locals {
+  # Public address for the SSH convenience outputs: the EIP when created, else the
+  # instance's auto-assigned public IP (empty in a private subnet).
+  ssh_host = var.create_eip ? aws_eip.this[0].public_ip : aws_instance.this.public_ip
+
+  # SSH is only reachable when the box has both a key pair and a public address.
+  ssh_available = var.key_name != null && (var.create_eip || var.associate_public_ip_address)
+}
+
+output "ssm_start_session_command" {
+  description = "Command to open a shell via SSM Session Manager (enable_ssm). Null otherwise. Add --region/--profile as needed."
+  value       = var.enable_ssm ? "aws ssm start-session --target ${aws_instance.this.id}" : null
+}
+
+output "ssh_command" {
+  description = "One-line SSH command. Null unless key_name is set AND the instance has a public address (create_eip or associate_public_ip_address). Assumes the private key is at ~/.ssh/<key_name>.pem; set ssh_user to match the AMI."
+  value       = local.ssh_available ? "ssh -i ~/.ssh/${var.key_name}.pem ${var.ssh_user}@${local.ssh_host}" : null
+}
+
+output "ssh_config" {
+  description = "SSH config entry for the instance (add to ~/.ssh/config). Same requirements as ssh_command; null otherwise."
+  value = local.ssh_available ? join("\n", [
+    "# ${var.app_name}",
+    "Host ${var.app_name}",
+    "    HostName ${local.ssh_host}",
+    "    User ${var.ssh_user}",
+    "    IdentitiesOnly yes",
+    "    IdentityFile ~/.ssh/${var.key_name}.pem",
+  ]) : null
+}

@@ -49,6 +49,12 @@ variable "key_name" {
   default     = null
 }
 
+variable "ssh_user" {
+  description = "Login user for the ssh_command / ssh_config convenience outputs. AMI-dependent: \"ec2-user\" (Amazon Linux), \"ubuntu\" (Ubuntu), \"admin\" (Debian). Only affects those outputs, not the instance itself."
+  type        = string
+  default     = "ec2-user"
+}
+
 variable "associate_public_ip_address" {
   description = "Assign an auto-public IP at launch. Prefer create_eip for a stable address; set false when using a private subnet."
   type        = bool

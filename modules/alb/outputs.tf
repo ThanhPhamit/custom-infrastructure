@@ -7,7 +7,7 @@ output "lb_listener_http_prod_arn" {
 }
 
 output "lb_listener_http_test_arn" {
-  value = aws_lb_listener.http_test.arn
+  value = try(aws_lb_listener.http_test[0].arn, null)
 }
 
 output "lb_listener_http_redirect_arn" {
@@ -33,4 +33,9 @@ output "domain" {
 output "alb_arn" {
   description = "Full ARN of the ALB (for WAF association reference)"
   value       = aws_lb.alb.arn
+}
+
+output "trust_store_arn" {
+  description = "ARN of the origin-mTLS trust store created by this module (null unless enable_mutual_auth=verify and no existing trust store was passed)."
+  value       = one(aws_lb_trust_store.this[*].arn)
 }

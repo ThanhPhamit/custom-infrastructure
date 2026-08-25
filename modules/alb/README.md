@@ -2,6 +2,16 @@
 
 Terraform module which creates Application Load Balancer resources on AWS.
 
+> ⚠️ **When this ALB is a CloudFront origin: Origin mTLS is MANDATORY.** The HTTPS listener MUST run
+> `mutual_authentication { mode = "verify" }` against a trust store (CA bundle in S3) so only your
+> CloudFront distribution — presenting its client certificate — can connect. A CloudFront **prefix
+> list alone is NOT sufficient**: the origin-facing CloudFront IP ranges are shared across *all* AWS
+> accounts, so anyone can point their own distribution at this ALB and pass the prefix-list rule.
+> **Implemented (since 2026-06-26).** Enable it with `enable_mutual_auth = true`, then either pass an
+> existing `mutual_auth_trust_store_arn` **or** let the module create the trust store from
+> `mutual_auth_ca_bundle_s3_bucket` + `mutual_auth_ca_bundle_s3_key` (the :443 listener then runs
+> `mutual_authentication { mode = "verify" }`). The caller owns the S3 bucket and uploads the CA bundle.
+
 ## Features
 
 This module supports creating:
@@ -11,7 +21,7 @@ This module supports creating:
 - **HTTPS Listeners** - Production (443) and Test (10443) ports
 - **HTTP Redirect** - Automatic HTTP to HTTPS redirect
 - **Route53 DNS Record** - Optional A record for the ALB
-- **CloudFront Integration** - Support for CloudFront prefix list
+- **CloudFront Integration** - CloudFront prefix list (network layer; ⚠️ NOT sufficient access control alone — pair with Origin mTLS, see note above)
 
 ## Usage
 

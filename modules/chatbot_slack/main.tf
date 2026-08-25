@@ -3,6 +3,8 @@ locals {
 }
 
 resource "awscc_chatbot_slack_channel_configuration" "this" {
+  count = var.create_slack_channel_config ? 1 : 0
+
   configuration_name = "${var.app_name}-${var.slack_channel_name}-slack"
   iam_role_arn       = aws_iam_role.chatbot.arn
   slack_channel_id   = var.slack_channel_id
