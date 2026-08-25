@@ -42,6 +42,10 @@ module "ec2_scheduler" {
 | `stop_expression` | Stop cron | `cron(0 20 ? * MON-FRI *)` |
 | `timezone` | IANA timezone | `Asia/Tokyo` |
 | `enabled` | Enable schedules | `true` |
+| `kms_key_arn` | CMK encrypting the schedule payload at rest. `null` = AWS-owned key. The payload is an instance ID, not a secret, so this is usually unnecessary — but a compliance baseline that mandates CMK everywhere can set it. The key policy must allow `scheduler.amazonaws.com`. | `null` |
+| `retry_maximum_attempts` | Retry attempts for a failed invocation. AWS defaults to 185 (with a 24 h age) — wrong for a STOP schedule: a 19:00 stop that keeps retrying can succeed at 10:00 the next working day. | `10` |
+| `retry_maximum_event_age_seconds` | How long a failed invocation stays retryable. Keeps retries inside the window the schedule was meant for. | `3600` |
+| `dead_letter_arn` | SQS queue for invocations that fail every retry. `null` = **no dead letter**, so a permanently failed start/stop is silent. The module does not create the queue — one queue usually serves several schedulers. | `null` |
 | `tags` | Tag map | `{}` |
 
 ## Outputs

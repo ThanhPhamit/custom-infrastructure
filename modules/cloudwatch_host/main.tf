@@ -43,7 +43,13 @@ resource "aws_cloudwatch_metric_alarm" "status_check" {
   threshold           = 1
   period              = 60
   evaluation_periods  = 2
-  treat_missing_data  = "breaching"
+
+  # "breaching" is right for a host that is supposed to be up 24/7: StatusCheckFailed simply STOPS
+  # reporting when an instance is stopped or terminated, so absence of data is the only signal that
+  # the machine is gone. It is WRONG for a host on a start/stop schedule -- every scheduled stop
+  # would page. Set "notBreaching" there: an instance that is running but broken still publishes
+  # StatusCheckFailed = 1 and still alarms; what you give up is detecting a machine that vanished.
+  treat_missing_data = var.status_check_treat_missing_data
 
   alarm_actions = [var.sns_topic_arn]
   ok_actions    = [var.sns_topic_arn]

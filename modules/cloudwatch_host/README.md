@@ -48,6 +48,21 @@ Optional: `log_retention_in_days` (30), `log_kms_key_id` (null), `cpu_threshold`
 `memory_threshold` (85), `disk_threshold` (85), `create_memory_alarm`/`create_disk_alarm` (true),
 `cwagent_namespace` (CWAgent), `period` (300), `evaluation_periods` (2), `tags`.
 
+### `status_check_treat_missing_data` — read this before scheduling the host
+
+Default `"breaching"`. `StatusCheckFailed` simply **stops publishing** when an instance is stopped or
+terminated, so on a host that is meant to be up 24/7 the absence of data *is* the failure signal, and
+`breaching` is correct.
+
+It is wrong the moment the instance runs on a **start/stop schedule**: every scheduled shutdown
+becomes an alarm, the channel gets a page every evening, and an alarm that cries wolf nightly is one
+the team stops reading — which costs more than the detection it was meant to buy. Set
+`"notBreaching"` there. You keep the alarm that matters: an instance that is *running but broken*
+still publishes `StatusCheckFailed = 1` and still fires. What you give up is noticing an instance
+that vanished outside working hours.
+
+Accepted values: `breaching`, `notBreaching`, `ignore`, `missing` (validated).
+
 ## Outputs
 
 `log_group_name`, `log_group_arn`, `alarm_arns` (map).

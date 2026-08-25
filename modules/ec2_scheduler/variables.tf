@@ -54,3 +54,37 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "kms_key_arn" {
+  description = "Customer-managed KMS key encrypting the schedule payload at rest. null = the AWS-owned key. The payload here is an instance identifier, not a secret, so a CMK is usually unnecessary -- but the choice belongs to the caller, and a compliance baseline that requires CMK everywhere can set it. Note the key policy must allow scheduler.amazonaws.com."
+  type        = string
+  default     = null
+}
+
+variable "retry_maximum_attempts" {
+  description = "Retry attempts for a failed invocation. AWS defaults to 185, which pairs with a 24-hour event age -- wrong for a STOP schedule: a 19:00 stop that keeps retrying can succeed at 10:00 the next working day and take production down mid-morning. Giving up beats succeeding at the wrong hour."
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.retry_maximum_attempts >= 0 && var.retry_maximum_attempts <= 185
+    error_message = "maximum_retry_attempts must be between 0 and 185."
+  }
+}
+
+variable "retry_maximum_event_age_seconds" {
+  description = "How long a failed invocation stays retryable. Default 3600 (1 hour) keeps every retry inside the window the schedule was meant for; AWS defaults to 86400, which spills into the next day."
+  type        = number
+  default     = 3600
+
+  validation {
+    condition     = var.retry_maximum_event_age_seconds >= 60 && var.retry_maximum_event_age_seconds <= 86400
+    error_message = "maximum_event_age_in_seconds must be between 60 and 86400."
+  }
+}
+
+variable "dead_letter_arn" {
+  description = "SQS queue ARN receiving invocations that fail every retry. null = NO dead letter, which means a permanently failed start/stop is SILENT: the instance simply stays as it was and nobody is told until the bill or a user complains. The module does not create the queue -- owning a queue is a separate responsibility, and one queue usually serves several schedulers."
+  type        = string
+  default     = null
+}

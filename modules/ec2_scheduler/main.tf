@@ -1,3 +1,5 @@
+data "aws_caller_identity" "current" {}
+
 locals {
   # Derive instance IDs from the ARNs (…:instance/i-0abc… → i-0abc…).
   instance_ids = [for arn in var.instance_arns : element(split("/", arn), length(split("/", arn)) - 1)]
@@ -14,6 +16,24 @@ data "aws_iam_policy_document" "assume" {
     principals {
       type        = "Service"
       identifiers = ["scheduler.amazonaws.com"]
+    }
+
+    # Confused-deputy guard. scheduler.amazonaws.com is a GLOBAL service principal: without this,
+    # the trust says "any EventBridge Scheduler may assume this role", including one in an account
+    # that is not yours.
+    #
+    # SourceAccount ONLY — do not add an ArnLike on aws:SourceArn here. It looks tighter and it
+    # breaks the module: EventBridge Scheduler validates that it can assume the role at
+    # CreateSchedule time, and at that moment the schedule does not exist yet, so there is no
+    # SourceArn to match. CreateSchedule then fails with "The execution role you provide must allow
+    # AWS EventBridge Scheduler to assume the role" — measured 2026-08-25, and it fails for a
+    # schedule name INSIDE the pattern just as it does for one outside, which is what rules out a
+    # simple pattern mistake. Existing schedules keep working (they were created before the
+    # condition existed), so the damage only appears the next time someone applies from scratch.
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
     }
   }
 }
@@ -34,6 +54,18 @@ data "aws_iam_policy_document" "perms" {
     effect    = "Allow"
     actions   = ["ec2:StartInstances", "ec2:StopInstances"]
     resources = var.instance_arns
+  }
+
+  # Only granted when a dead-letter queue is actually configured — an unused SendMessage grant is
+  # just a permission nobody audits.
+  dynamic "statement" {
+    for_each = var.dead_letter_arn == null ? [] : [var.dead_letter_arn]
+    content {
+      sid       = "SendFailedInvocationToDLQ"
+      effect    = "Allow"
+      actions   = ["sqs:SendMessage"]
+      resources = [statement.value]
+    }
   }
 }
 
@@ -57,11 +89,24 @@ resource "aws_scheduler_schedule" "start" {
   schedule_expression          = var.start_expression
   schedule_expression_timezone = var.timezone
   state                        = local.state
+  kms_key_arn                  = var.kms_key_arn
 
   target {
     arn      = "arn:aws:scheduler:::aws-sdk:ec2:startInstances"
     role_arn = aws_iam_role.scheduler.arn
     input    = jsonencode({ InstanceIds = local.instance_ids })
+
+    retry_policy {
+      maximum_retry_attempts       = var.retry_maximum_attempts
+      maximum_event_age_in_seconds = var.retry_maximum_event_age_seconds
+    }
+
+    dynamic "dead_letter_config" {
+      for_each = var.dead_letter_arn == null ? [] : [var.dead_letter_arn]
+      content {
+        arn = dead_letter_config.value
+      }
+    }
   }
 }
 
@@ -76,10 +121,23 @@ resource "aws_scheduler_schedule" "stop" {
   schedule_expression          = var.stop_expression
   schedule_expression_timezone = var.timezone
   state                        = local.state
+  kms_key_arn                  = var.kms_key_arn
 
   target {
     arn      = "arn:aws:scheduler:::aws-sdk:ec2:stopInstances"
     role_arn = aws_iam_role.scheduler.arn
     input    = jsonencode({ InstanceIds = local.instance_ids })
+
+    retry_policy {
+      maximum_retry_attempts       = var.retry_maximum_attempts
+      maximum_event_age_in_seconds = var.retry_maximum_event_age_seconds
+    }
+
+    dynamic "dead_letter_config" {
+      for_each = var.dead_letter_arn == null ? [] : [var.dead_letter_arn]
+      content {
+        arn = dead_letter_config.value
+      }
+    }
   }
 }

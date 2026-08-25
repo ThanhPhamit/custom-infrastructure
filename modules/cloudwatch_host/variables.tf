@@ -83,3 +83,14 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "status_check_treat_missing_data" {
+  description = "How the StatusCheckFailed alarm treats missing data. Default \"breaching\" suits an always-on host (a stopped instance publishes nothing, so absence IS the failure signal). Use \"notBreaching\" when the instance runs on a start/stop schedule, or every scheduled stop pages -- a running-but-broken instance still publishes 1 and still alarms."
+  type        = string
+  default     = "breaching"
+
+  validation {
+    condition     = contains(["breaching", "notBreaching", "ignore", "missing"], var.status_check_treat_missing_data)
+    error_message = "Must be one of: breaching, notBreaching, ignore, missing."
+  }
+}
