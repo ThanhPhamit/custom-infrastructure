@@ -104,7 +104,18 @@ resource "aws_elasticache_replication_group" "redis" {
   transit_encryption_enabled = var.transit_encryption_enabled
   at_rest_encryption_enabled = var.at_rest_encryption_enabled
 
+  # AUTH token (Redis/Valkey AUTH). Only valid when transit encryption is on — enforced below.
+  auth_token                 = var.auth_token
+  auth_token_update_strategy = var.auth_token != null ? var.auth_token_update_strategy : null
+
   apply_immediately = var.apply_immediately
+
+  lifecycle {
+    precondition {
+      condition     = var.auth_token == null || var.transit_encryption_enabled
+      error_message = "auth_token requires transit_encryption_enabled = true (AWS rejects AUTH without TLS)."
+    }
+  }
 
   dynamic "log_delivery_configuration" {
     for_each = var.enable_log_delivery ? {

@@ -1,23 +1,79 @@
 # CloudFront distribution for ALB
+
+locals {
+  # Create the basic-auth CloudFront Function only when auth is actually used — by the default
+  # cache behavior or by any ordered cache behavior. Prevents an orphan function when auth is off.
+  create_auth_function = var.enable_default_auth || anytrue([for b in var.cache_behaviors : b.enable_auth])
+}
+
+# VPC origin — lets CloudFront reach a PRIVATE (internal) ALB through AWS-managed ENIs inside the
+# VPC. The origin never gets a public IP, so nothing on the internet can bypass CloudFront; this
+# replaces the origin-mTLS lock for in-VPC origins. No additional charge. Requires aws >= 5.77.
+resource "aws_cloudfront_vpc_origin" "main" {
+  count = var.enable_vpc_origin ? 1 : 0
+
+  vpc_origin_endpoint_config {
+    name                   = "${var.app_name}-vpc-origin"
+    arn                    = var.vpc_origin_endpoint_arn
+    http_port              = 80
+    https_port             = var.vpc_origin_https_port
+    origin_protocol_policy = var.vpc_origin_protocol_policy
+
+    origin_ssl_protocols {
+      items    = var.vpc_origin_ssl_protocols
+      quantity = length(var.vpc_origin_ssl_protocols)
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = var.vpc_origin_endpoint_arn != ""
+      error_message = "vpc_origin_endpoint_arn is required when enable_vpc_origin = true."
+    }
+  }
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.app_name}-vpc-origin"
+    }
+  )
+}
+
 resource "aws_cloudfront_distribution" "main" {
 
   origin {
     domain_name = var.alb_domain_name
     origin_id   = "ALB-${var.app_name}"
 
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
+    # Private path: route origin fetches through the VPC origin (internal ALB, no public exposure).
+    dynamic "vpc_origin_config" {
+      for_each = var.enable_vpc_origin ? [1] : []
+      content {
+        vpc_origin_id = aws_cloudfront_vpc_origin.main[0].id
+      }
+    }
 
-      # Optional origin mTLS — CloudFront presents this ACM client cert (us-east-1, EKU
-      # clientAuth) to the origin on every origin TLS handshake; the origin verifies it.
-      # Empty arn = disabled (default, fully backward-compatible). Requires aws >= 6.51.0.
-      dynamic "origin_mtls_config" {
-        for_each = var.origin_client_certificate_arn != "" ? [1] : []
-        content {
-          client_certificate_arn = var.origin_client_certificate_arn
+    # Public path (backward-compatible default): custom origin over the internet — MUST be locked
+    # with origin mTLS when the origin is an ALB/custom origin you control.
+    dynamic "custom_origin_config" {
+      for_each = var.enable_vpc_origin ? [] : [1]
+      content {
+        http_port              = 80
+        https_port             = 443
+        origin_protocol_policy = "https-only"
+        origin_ssl_protocols   = ["TLSv1.2"]
+
+        # Origin mTLS — CloudFront presents this ACM client cert (us-east-1, EKU clientAuth) to the
+        # origin on every origin TLS handshake; the origin verifies it. MANDATORY when fronting a
+        # public origin you control — a prefix list / shared-secret header alone is NOT sufficient
+        # (CloudFront IP ranges are shared across all AWS accounts). Empty arn = disabled.
+        # Requires aws >= 6.51.0 + ALB mutual_authentication mode=verify on the origin side.
+        dynamic "origin_mtls_config" {
+          for_each = var.origin_client_certificate_arn != "" ? [1] : []
+          content {
+            client_certificate_arn = var.origin_client_certificate_arn
+          }
         }
       }
     }
@@ -48,7 +104,7 @@ resource "aws_cloudfront_distribution" "main" {
       for_each = var.enable_default_auth ? [1] : []
       content {
         event_type   = "viewer-request"
-        function_arn = aws_cloudfront_function.basic_auth.arn
+        function_arn = aws_cloudfront_function.basic_auth[0].arn
       }
     }
   }
@@ -76,7 +132,7 @@ resource "aws_cloudfront_distribution" "main" {
         for_each = lookup(ordered_cache_behavior.value, "enable_auth", false) ? [1] : []
         content {
           event_type   = "viewer-request"
-          function_arn = aws_cloudfront_function.basic_auth.arn
+          function_arn = aws_cloudfront_function.basic_auth[0].arn
         }
       }
     }
@@ -118,8 +174,11 @@ resource "aws_cloudfront_distribution" "main" {
   tags = var.tags
 }
 
-# CloudFront Function for basic authentication (optional)
+# CloudFront Function for basic authentication (optional) — created only when auth is used
+# (var.enable_default_auth, or any cache_behaviors[*].enable_auth). See local.create_auth_function.
 resource "aws_cloudfront_function" "basic_auth" {
+  count = local.create_auth_function ? 1 : 0
+
   name    = "${var.app_name}-cloudfront-auth"
   runtime = "cloudfront-js-1.0"
   comment = "Basic authentication for ${var.app_name}"

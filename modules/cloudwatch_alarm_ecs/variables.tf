@@ -63,6 +63,39 @@ variable "load_balancer_type" {
   }
 }
 
+# ALB 5xx Alarms
+# NOTE: every variable below is optional. Existing callers of this module keep
+# working unchanged; the 5xx alarms are created by default for ALB deployments.
+variable "create_lb_5xx_alarm" {
+  description = "Create the ALB 5xx alarms (HTTPCode_ELB_5XX_Count and HTTPCode_Target_5XX_Count). Automatically skipped when load_balancer_type is not alb, because AWS/NetworkELB does not publish these metrics."
+  type        = bool
+  default     = true
+}
+
+variable "cw_alarm_lb_5xx_period" {
+  description = "Period for the ALB 5xx alarms (seconds). 300 keeps a single blip from paging while still catching a sustained problem within 5 minutes."
+  type        = number
+  default     = 300
+}
+
+variable "cw_alarm_lb_5xx_evaluation_periods" {
+  description = "Evaluation periods for the ALB 5xx alarms."
+  type        = number
+  default     = 1
+}
+
+variable "cw_alarm_lb_elb_5xx_threshold" {
+  description = "Alarm when HTTPCode_ELB_5XX_Count exceeds this value within one period. Default 5 absorbs isolated connection blips; set 0 to alert on any single occurrence."
+  type        = number
+  default     = 5
+}
+
+variable "cw_alarm_lb_target_5xx_threshold" {
+  description = "Alarm when HTTPCode_Target_5XX_Count exceeds this value within one period. Default 0 alerts on any application-returned 5xx, since a healthy service should sit at zero."
+  type        = number
+  default     = 0
+}
+
 # Log Error Alarms - Periods and Evaluation Periods
 variable "cw_alarm_log_error_period" {
   description = "Period for log error alarms (seconds)"

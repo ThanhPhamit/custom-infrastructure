@@ -29,8 +29,13 @@ output "cloudfront_status" {
 }
 
 output "cloudfront_function_arn" {
-  description = "ARN of the CloudFront Function (if basic auth is enabled)"
-  value       = aws_cloudfront_function.basic_auth.arn
+  description = "ARN of the CloudFront Function (null unless basic auth is enabled)"
+  value       = one(aws_cloudfront_function.basic_auth[*].arn)
+}
+
+output "vpc_origin_id" {
+  description = "ID of the CloudFront VPC origin (null unless enable_vpc_origin = true)"
+  value       = one(aws_cloudfront_vpc_origin.main[*].id)
 }
 
 output "access_urls" {

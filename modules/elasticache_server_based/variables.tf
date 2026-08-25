@@ -136,3 +136,21 @@ variable "tags" {
   description = "Tags to apply to resources"
   default     = {}
 }
+
+variable "auth_token" {
+  type        = string
+  description = "AUTH token (password) clients must present to the cache. Requires transit_encryption_enabled = true. null disables AUTH. Pass from a Secrets Manager-backed value — never hardcode in tfvars."
+  default     = null
+  sensitive   = true
+}
+
+variable "auth_token_update_strategy" {
+  type        = string
+  description = "Strategy when rotating the AUTH token in place (ROTATE keeps the old token valid during rotation; SET replaces immediately)."
+  default     = "ROTATE"
+
+  validation {
+    condition     = contains(["ROTATE", "SET"], var.auth_token_update_strategy)
+    error_message = "auth_token_update_strategy must be ROTATE or SET."
+  }
+}

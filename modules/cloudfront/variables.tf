@@ -189,7 +189,41 @@ variable "web_acl_arn" {
 }
 
 variable "origin_client_certificate_arn" {
-  description = "Optional origin mTLS: ACM certificate ARN (us-east-1, EKU clientAuth) that CloudFront presents to the custom origin on every origin TLS handshake. Empty string disables origin mTLS (default; fully backward-compatible). Requires aws provider >= 6.51.0."
+  description = "Origin mTLS: ACM certificate ARN (us-east-1, EKU clientAuth) CloudFront presents to the origin on every origin TLS handshake; the origin verifies it. REQUIRED BY POLICY whenever this distribution fronts a PUBLIC origin you control (ALB/custom origin) — a CloudFront prefix list or shared-secret header alone is NOT sufficient access control. Empty string disables it (kept for backward-compat / S3-style origins only). NOT used when enable_vpc_origin = true (a private origin needs no mTLS lock). Requires aws provider >= 6.51.0."
   type        = string
   default     = ""
+}
+
+variable "enable_vpc_origin" {
+  description = "Reach the origin through a CloudFront VPC origin instead of a public custom origin. PREFERRED whenever the origin lives in a VPC (standing preference): point this at an INTERNAL ALB — the origin then has no public IP at all, which replaces the origin-mTLS lock entirely. alb_domain_name must still resolve/match the internal ALB's certificate. Requires vpc_origin_endpoint_arn."
+  type        = bool
+  default     = false
+}
+
+variable "vpc_origin_endpoint_arn" {
+  description = "ARN of the internal ALB (or NLB / EC2 instance) the VPC origin connects to. Required when enable_vpc_origin = true."
+  type        = string
+  default     = ""
+}
+
+variable "vpc_origin_https_port" {
+  description = "HTTPS port CloudFront connects to on the VPC origin endpoint."
+  type        = number
+  default     = 443
+}
+
+variable "vpc_origin_protocol_policy" {
+  description = "Protocol policy for the VPC origin connection."
+  type        = string
+  default     = "https-only"
+  validation {
+    condition     = contains(["http-only", "https-only", "match-viewer"], var.vpc_origin_protocol_policy)
+    error_message = "vpc_origin_protocol_policy must be one of: http-only, https-only, match-viewer."
+  }
+}
+
+variable "vpc_origin_ssl_protocols" {
+  description = "SSL/TLS protocols CloudFront may use when connecting to the VPC origin."
+  type        = list(string)
+  default     = ["TLSv1.2"]
 }

@@ -12,7 +12,7 @@
 | chatbot_slack | AWS Chatbot Slack channel + SNS topic | app_name, slack_workspace_id, slack_channel_id, slack_channel_name | chatbot_sns_topic_arn | — |
 | client_VPN_endpoints | Client VPN endpoint with self-signed TLS certs | app_name, vpn_domain, vpc_id, subnet_ids, private_subnet_cidrs, enable_vpn_associations | — | — |
 | cloudfront | CloudFront distribution fronting ALB origin + Route53 | app_name, alb_domain_name | cloudfront_distribution_id, cloudfront_domain_name, custom_domain, cloudfront_function_arn, access_urls, cloudfront_distribution_arn +2 more | — |
-| cloudwatch_alarm_ecs | ECS alarms, composite alarm, autoscaling policies | app_name, aws_region, cw_alarm_cluster_name, cw_alarm_service_name, chatbot_notice_sns_topic_arn, chatbot_alert_sns_topic_arn +13 more | — | — |
+| cloudwatch_alarm_ecs | ECS alarms, ALB 5xx alarms, composite alarm, autoscaling policies | app_name, aws_region, cw_alarm_cluster_name, cw_alarm_service_name, chatbot_notice_sns_topic_arn, chatbot_alert_sns_topic_arn +13 more | — | — |
 | cloudwatch_alarm_elasticache_server_based | Per-node ElastiCache CPU/memory/hit-ratio/eviction alarms | app_name, aws_region, cache_nodes, chatbot_notice_sns_topic_arn, chatbot_alert_sns_topic_arn | — | — |
 | cloudwatch_alarm_rds_instance | RDS CPU/memory/storage alarms to SNS | app_name, rds_db_instance_identifier, chatbot_notice_sns_topic_arn, chatbot_alert_sns_topic_arn, cw_alarm_rds_cpu_utilization_alert_threshold, cw_alarm_rds_freeable_memory_alert_threshold +6 more | — | — |
 | cloudwatch_host | Single-EC2-host log group + CPU/status/memory/disk alarms | app_name, instance_id, sns_topic_arn, log_group_name | log_group_name, log_group_arn, alarm_arns | singapore-prod |

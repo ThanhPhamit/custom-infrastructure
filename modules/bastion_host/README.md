@@ -13,6 +13,50 @@ This module supports creating:
 - **EventBridge Scheduler** - Optional automatic start/stop scheduling
 - **Lambda Function** - For scheduled instance management
 
+## Subnet Placement: Public vs Private (read before choosing `subnet_id`)
+
+Prefer a **private subnet**, but only when the VPC lets the SSM agent reach the
+`ssm`, `ssmmessages`, and `ec2messages` services. Check the target subnet's
+route table and the VPC's endpoints first, then pick the row that matches:
+
+| VPC capability                                                              | Placement          | Module settings                                                 |
+| --------------------------------------------------------------------------- | ------------------ | --------------------------------------------------------------- |
+| Private subnet routes `0.0.0.0/0` to a NAT gateway                          | Private (preferred) | `associate_public_ip_address = false`, `create_eip = false`     |
+| VPC has interface endpoints for `ssm` + `ssmmessages` + `ec2messages` (all 3) | Private (preferred) | `associate_public_ip_address = false`, `create_eip = false`     |
+| Neither NAT nor the 3 SSM interface endpoints                               | Public (fallback)  | `associate_public_ip_address = true`, keep `enable_ssh = false` |
+
+Important caveats:
+
+- An **S3 gateway endpoint alone is NOT sufficient** for Session Manager. It only
+  covers optional features (agent auto-update, session logs to S3, Patch Manager).
+  Without NAT or the 3 interface endpoints, the agent cannot register and the
+  instance never appears in Session Manager.
+- The public-subnet fallback is acceptable in practice: with `enable_ssh = false`
+  the security group has zero inbound rules, so the public IP is used for
+  outbound SSM traffic only. Compliance scanners (e.g. CIS) may still flag
+  "EC2 instance with public IP" — prefer private when the prerequisites exist.
+- If the bastion must reach on-prem/customer networks via VGW/TGW, verify the
+  chosen subnet's route table also has those routes (route propagation enabled).
+- Rough cost: 3 interface endpoints ≈ $25–30/month (1 AZ, ap-northeast-3);
+  NAT gateway ≈ $45/month + data processing. A public IP on a scheduler-stopped
+  bastion costs only a few dollars/month.
+- SSH mode (`enable_ssh = true`) requires a public subnet + public IP (or VPN
+  reachability); the SSM decision table above does not apply.
+
+Quick checks:
+
+```bash
+# Does the subnet route 0.0.0.0/0 to a NAT gateway?
+aws ec2 describe-route-tables \
+  --filters "Name=association.subnet-id,Values=<subnet-id>" \
+  --query 'RouteTables[].Routes'
+
+# Does the VPC have the 3 SSM interface endpoints?
+aws ec2 describe-vpc-endpoints \
+  --filters "Name=vpc-id,Values=<vpc-id>" \
+  --query 'VpcEndpoints[].ServiceName'
+```
+
 ## Usage
 
 ### Example 1: Basic Bastion Host

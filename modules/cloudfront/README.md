@@ -2,6 +2,17 @@
 
 Terraform module which creates CloudFront distribution with ALB origin on AWS.
 
+> ⚠️ **MANDATORY — Origin mTLS for any origin you control.** When this distribution fronts an origin
+> you own (ALB / custom origin), you **MUST** set `origin_client_certificate_arn` so CloudFront
+> presents a client certificate that the origin verifies. A CloudFront **prefix list** or a
+> **shared-secret header** alone is **NOT** sufficient access control — both only prove the request
+> came from *some* CloudFront (the origin-facing IP ranges are shared across *all* AWS accounts, so
+> anyone can point their own distribution at your origin and pass). Origin mTLS is the cryptographic
+> proof that it is **this** distribution. Requires `aws >= 6.51.0` **and** the origin enforcing
+> `mutual_authentication { mode = "verify" }` (ALB) against a trust store. Reference implementation:
+> the `cloudfront-mtls-origins` project. (S3 origins → use OAC instead; in-VPC origins → prefer VPC
+> origins/PrivateLink.)
+
 ## Features
 
 This module supports creating:

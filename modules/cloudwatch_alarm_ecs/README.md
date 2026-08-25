@@ -9,6 +9,7 @@ This module supports creating:
 - **CPU Utilization Alarms** - Scale out/in and alert thresholds
 - **Memory Utilization Alarms** - Scale out/in and alert thresholds
 - **Load Balancer Alarms** - Unhealthy host count monitoring
+- **ALB 5xx Alarms** - Load-balancer-generated and target-returned 5xx (ALB only)
 - **Log Error Alarms** - Application error detection
 - **Auto Scaling Policies** - Target tracking and step scaling
 - **SNS Integration** - Slack notifications via Chatbot
@@ -182,6 +183,34 @@ module "cloudwatch_alarm_ecs" {
 | Alert      | 90%       | Send critical alert |
 | Scale In   | 20%       | Remove ECS tasks    |
 
+### ALB 5xx (ALB only)
+
+| Alarm | Metric | Default threshold | Meaning |
+| ----- | ------ | ----------------- | ------- |
+| `<app>_alb_elb_5xx` | `HTTPCode_ELB_5XX_Count` | `> 5` per 5 min | 5xx generated **by the ALB** — the target never answered (crash, OOM-kill, connection reset, stale keep-alive) |
+| `<app>_alb_target_5xx` | `HTTPCode_Target_5XX_Count` | `> 0` per 5 min | 5xx returned **by the application** itself |
+
+Why both, and why they matter:
+
+- These metrics live in the `AWS/ApplicationELB` namespace only. `AWS/NetworkELB`
+  does not publish them, so both alarms are skipped automatically when
+  `load_balancer_type = "nlb"`.
+- ALB-generated 5xx **never reach the ECS log group**, so a log-pattern alarm
+  cannot detect them. Without these alarms that entire failure class is invisible.
+- Reading them together is what makes triage fast:
+
+  | ELB_5XX | Target_5XX | Interpretation |
+  | ------- | ---------- | -------------- |
+  | `> 0` | `0` | Target died mid-request — crash / OOM-kill / timeout. Check the task logs for `signal 9` and the container memory limit. **Not** an application error path |
+  | `0` | `> 0` | Application returned 5xx — a real code-level bug, traceback should be in the log group |
+  | `> 0` | `> 0` | Both happening; treat separately |
+
+To disable (e.g. an environment that intentionally tolerates 5xx):
+
+```hcl
+create_lb_5xx_alarm = false
+```
+
 ## Log Error Pattern Examples
 
 ```hcl
@@ -226,6 +255,11 @@ cw_alarm_ecs_log_error_pattern = "?ERROR ?error ?CRITICAL ?FATAL ?Exception"
 | cw_alarm_ecs_memory_utilization_high_threshold       | Memory high threshold for scaling    | `number`      | `70`    |    no    |
 | cw_alarm_ecs_memory_utilization_high_alert_threshold | Memory high threshold for alert      | `number`      | `90`    |    no    |
 | cw_alarm_ecs_memory_utilization_low_threshold        | Memory low threshold for scale in    | `number`      | `20`    |    no    |
+| create_lb_5xx_alarm                                  | Create the ALB 5xx alarms (ALB only) | `bool`        | `true`  |    no    |
+| cw_alarm_lb_5xx_period                               | ALB 5xx alarm period (seconds)       | `number`      | `300`   |    no    |
+| cw_alarm_lb_5xx_evaluation_periods                   | ALB 5xx evaluation periods           | `number`      | `1`     |    no    |
+| cw_alarm_lb_elb_5xx_threshold                        | Threshold for HTTPCode_ELB_5XX_Count | `number`      | `5`     |    no    |
+| cw_alarm_lb_target_5xx_threshold                     | Threshold for HTTPCode_Target_5XX_Count | `number`   | `0`     |    no    |
 | tags                                                 | Tags to apply to resources           | `map(string)` | `{}`    |    no    |
 
 ## Outputs
