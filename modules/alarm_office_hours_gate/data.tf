@@ -4,10 +4,13 @@ data "aws_region" "current" {}
 locals {
   state = var.enabled ? "ENABLED" : "DISABLED"
 
+  # Arm/disarm covers both lists; only alarm_names gets a reset schedule.
+  gated_alarm_names = concat(var.alarm_names, var.alarm_names_no_reset)
+
   # Alarm ARNs are built rather than taken as input, so the caller passes the plain names the
   # CloudWatch APIs actually want while the IAM policy still scopes to exactly those alarms.
   alarm_arns = [
-    for n in var.alarm_names :
+    for n in local.gated_alarm_names :
     "arn:aws:cloudwatch:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:alarm:${n}"
   ]
 

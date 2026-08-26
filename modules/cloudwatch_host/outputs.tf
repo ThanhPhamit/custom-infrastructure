@@ -24,3 +24,12 @@ output "host_absent_alarm_name" {
   description = "Name of the host-absent alarm (null unless create_host_absent_alarm). Feed this to the alarm_office_hours_gate module."
   value       = one(aws_cloudwatch_metric_alarm.host_absent[*].alarm_name)
 }
+
+output "threshold_alarm_names" {
+  description = "Names of the CPU/memory/disk threshold alarms that exist. These carry ok_actions and cycle INSUFFICIENT_DATA -> OK every time a scheduled host boots, so feed them to alarm_office_hours_gate's alarm_names_no_reset to keep that boot-time recovery silent without losing a real daytime one."
+  value = compact([
+    aws_cloudwatch_metric_alarm.cpu.alarm_name,
+    try(aws_cloudwatch_metric_alarm.memory[0].alarm_name, ""),
+    try(aws_cloudwatch_metric_alarm.disk[0].alarm_name, ""),
+  ])
+}

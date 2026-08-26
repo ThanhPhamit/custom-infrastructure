@@ -3,7 +3,7 @@
 
 | Module | Purpose | Required inputs | Key outputs | Used in env (example) |
 |--------|----------|-----------------|-------------|--------------------|
-| acm | Public ACM cert with Route53 DNS validation | domain, app_dns_zone | certificate_arn, certificate_id, virginia_certificate_arn | — |
+| acm | Public ACM cert with Route53 DNS validation (+ optional DaysToExpiry alarm) | domain, app_dns_zone | certificate_arn, certificate_id, virginia_certificate_arn | tokyo-prod |
 | alb | ALB with HTTPS listeners, WAF, optional mTLS | app_name, acm_certificate_arn, vpc_id, restricted_source_ips, subnet_ids | alb_arn, domain, alb_security_group_id, lb_listener_http_prod_arn, lb_listener_http_test_arn, trust_store_arn +4 more | — |
 | alert_email | SNS topic + Lambda email alert forwarder (SES) | app_name, sender_email, recipient_emails | sns_topic_arn, sns_topic_name, lambda_function_arn, lambda_function_name | — |
 | aurora_postgresql | Aurora PostgreSQL cluster with RDS-managed master secret | app_name, vpc_id, subnet_ids, allowed_cidr_blocks | cluster_endpoint, cluster_reader_endpoint, cluster_resource_id, master_user_secret_arn, security_group_id, db_subnet_group_name +3 more | — |
@@ -14,9 +14,9 @@
 | cloudfront | CloudFront distribution fronting ALB origin + Route53 | app_name, alb_domain_name | cloudfront_distribution_id, cloudfront_domain_name, custom_domain, cloudfront_function_arn, access_urls, cloudfront_distribution_arn +2 more | — |
 | cloudwatch_alarm_ecs | ECS alarms, ALB 5xx alarms, composite alarm, autoscaling policies | app_name, aws_region, cw_alarm_cluster_name, cw_alarm_service_name, chatbot_notice_sns_topic_arn, chatbot_alert_sns_topic_arn +13 more | — | — |
 | cloudwatch_alarm_elasticache_server_based | Per-node ElastiCache CPU/memory/hit-ratio/eviction alarms | app_name, aws_region, cache_nodes, chatbot_notice_sns_topic_arn, chatbot_alert_sns_topic_arn | — | — |
-| cloudwatch_alb_availability | ALB no-healthy-target alarm — the only user-visible availability signal (catches a dead container on a live host) | app_name, load_balancer_arn_suffix, target_group_arn_suffix, sns_topic_arn | alarm_name, alarm_arn | tokyo-prod |
+| cloudwatch_alb_availability | ALB availability alarms: no-healthy-target (catches a dead container on a live host) + optional target-5xx (app answers, with errors) | app_name, load_balancer_arn_suffix, target_group_arn_suffix, sns_topic_arn | alarm_name, alarm_arn | tokyo-prod |
 | cloudwatch_alarm_rds_instance | RDS CPU/memory/storage alarms to SNS (+ optional instance-absent and schedule-overrun alarms for scheduled instances) | app_name, rds_db_instance_identifier, chatbot_notice_sns_topic_arn, chatbot_alert_sns_topic_arn, cw_alarm_rds_cpu_utilization_alert_threshold, cw_alarm_rds_freeable_memory_alert_threshold +6 more | — | — |
-| alarm_office_hours_gate | Arms CloudWatch alarms only during scheduled running hours (EventBridge Scheduler; disarm/arm/reset) | app_name, alarm_names | role_arn, schedule_names, gated_alarm_arns | tokyo-prod |
+| alarm_office_hours_gate | Arms CloudWatch alarms only during scheduled running hours (EventBridge Scheduler; disarm/arm/reset, plus arm-only for threshold alarms) | app_name, alarm_names | role_arn, schedule_names, gated_alarm_arns | tokyo-prod |
 | cloudwatch_host | Single-EC2-host log group + CPU/status/memory/disk alarms (+ optional host-absent and schedule-overrun alarms for scheduled hosts) | app_name, instance_id, sns_topic_arn, log_group_name | log_group_name, log_group_arn, alarm_arns, host_absent_alarm_name | tokyo-prod |
 | codedeploy | CodeDeploy ECS blue/green deployment group + bucket | app_name, aws_region, ecs_cluster_name, ecs_service_name, task_definition_arn, lb_listener_prod_arn +5 more | s3_bucket_name, create_deployment_script | — |
 | dlm_ebs_snapshots | DLM scheduled EBS snapshots + self-contained service role (INSTANCE, exclude boot vol) | app_name, target_tags | policy_id, policy_arn, execution_role_arn | singapore-prod |

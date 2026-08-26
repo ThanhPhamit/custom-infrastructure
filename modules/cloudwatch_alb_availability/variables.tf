@@ -87,3 +87,34 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "create_target_5xx_alarm" {
+  description = <<-EOT
+    Alarm when the TARGET returns 5xx -- the app is up, registered and passing its health check, but
+    failing real requests. The classic cause is a dependency it cannot reach (database, cache,
+    upstream API) while the health check is shallow enough not to notice.
+
+    This is the only infrastructure-level signal for that failure. A metric on the dependency itself
+    usually is not: RDS DatabaseConnections, for example, oscillates to zero on a perfectly healthy
+    app whose pool closes idle connections, so no threshold separates healthy from broken (measured
+    2026-08-26). The 5xx count does separate them.
+
+    Caveat worth stating out loud: it needs traffic. With nobody using the service there are no
+    requests, no 5xx, and no alarm -- so this complements the availability alarm rather than
+    replacing it.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "target_5xx_threshold" {
+  description = "Target 5xx responses per period above which the alarm fires. Keep it above zero: a single 5xx is noise on any real service, a sustained handful is not."
+  type        = number
+  default     = 5
+}
+
+variable "target_5xx_period" {
+  description = "Seconds per evaluation period for the 5xx alarm. 300 smooths a one-off blip while still catching a broken dependency within five minutes."
+  type        = number
+  default     = 300
+}

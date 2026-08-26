@@ -7,3 +7,8 @@ output "alarm_arn" {
   description = "ARN of the no-healthy-host alarm."
   value       = aws_cloudwatch_metric_alarm.no_healthy_host.arn
 }
+
+output "target_5xx_alarm_name" {
+  description = "Name of the target-5xx alarm (null unless create_target_5xx_alarm)."
+  value       = one(aws_cloudwatch_metric_alarm.target_5xx[*].alarm_name)
+}

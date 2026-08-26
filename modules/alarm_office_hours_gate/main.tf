@@ -84,7 +84,7 @@ resource "aws_scheduler_schedule" "disarm" {
   target {
     arn      = "arn:aws:scheduler:::aws-sdk:cloudwatch:disableAlarmActions"
     role_arn = aws_iam_role.gate.arn
-    input    = jsonencode({ AlarmNames = var.alarm_names })
+    input    = jsonencode({ AlarmNames = local.gated_alarm_names })
 
     retry_policy {
       maximum_retry_attempts       = var.retry_maximum_attempts
@@ -116,7 +116,7 @@ resource "aws_scheduler_schedule" "arm" {
   target {
     arn      = "arn:aws:scheduler:::aws-sdk:cloudwatch:enableAlarmActions"
     role_arn = aws_iam_role.gate.arn
-    input    = jsonencode({ AlarmNames = var.alarm_names })
+    input    = jsonencode({ AlarmNames = local.gated_alarm_names })
 
     retry_policy {
       maximum_retry_attempts       = var.retry_maximum_attempts

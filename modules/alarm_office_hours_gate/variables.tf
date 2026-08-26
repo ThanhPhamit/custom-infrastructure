@@ -114,3 +114,22 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "alarm_names_no_reset" {
+  description = <<-EOT
+    Alarms to arm/disarm on the same schedule as alarm_names, but WITHOUT a morning reset.
+
+    Use it for threshold alarms on a scheduled resource -- CPU, memory, disk. They run
+    treat_missing_data = "missing", so they sit in INSUFFICIENT_DATA overnight (silent, because
+    insufficient_data_actions is empty) and transition back to OK on their own the moment the
+    resource publishes again. If they carry ok_actions, that transition posts a meaningless "OK"
+    every single working morning -- on a 22-working-day month, one alarm becomes 22 messages that
+    mean nothing, and a channel that trains people to skim is worse than no channel.
+
+    Disarming them across the off-window makes the boot-time recovery silent while leaving a REAL
+    daytime recovery notification intact. They need no reset: unlike a "breaching" absent alarm,
+    nothing latches them in ALARM overnight, so there is no stuck state to clear.
+  EOT
+  type        = list(string)
+  default     = []
+}
