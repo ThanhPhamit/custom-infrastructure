@@ -102,7 +102,7 @@ variable "create_host_absent_alarm" {
     supposed to be running right now and it is not there at all".
 
     Only useful on a host with a start/stop schedule, and only alongside an office-hours gate that
-    disarms this alarm's actions while the host is meant to be off (see the alarm_office_hours_gate module)
+    disarms this alarm's actions while the host is meant to be off (see modules/alarm_office_hours_gate)
     -- ungated it pages on every scheduled stop.
 
     Its ok_actions are deliberately EMPTY. The gate resets it to OK each morning before re-arming,
@@ -110,4 +110,30 @@ variable "create_host_absent_alarm" {
   EOT
   type        = bool
   default     = false
+}
+
+variable "create_schedule_overrun_alarm" {
+  description = <<-EOT
+    Create an alarm that fires when the host ran for MORE minutes in a day than its schedule allows
+    -- i.e. a stop that silently did not happen. Costs nothing to run and needs no office-hours gate,
+    because it counts rather than samples: StatusCheckFailed publishes exactly one datapoint per
+    minute while the instance lives, so the daily SampleCount IS the number of minutes it ran.
+
+    A 13-hour weekday window is 780 datapoints; an instance that never stopped is 1440. The default
+    threshold sits between them. Weekends and holidays produce no data at all, which is why
+    treat_missing_data is notBreaching here: absence is the good case.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "schedule_overrun_max_minutes_per_day" {
+  description = "Minutes per day above which the host is considered to have overrun its schedule. Set it comfortably above the real window (13 h = 780) and below 1440. Note a UTC day always contains exactly one such window, so the number does not need adjusting for the JST/UTC offset."
+  type        = number
+  default     = 1000
+
+  validation {
+    condition     = var.schedule_overrun_max_minutes_per_day > 0 && var.schedule_overrun_max_minutes_per_day < 1440
+    error_message = "schedule_overrun_max_minutes_per_day must be between 1 and 1439 (1440 = always on, which can never breach)."
+  }
 }

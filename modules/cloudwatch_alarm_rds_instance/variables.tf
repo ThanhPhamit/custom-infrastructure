@@ -26,7 +26,7 @@ variable "create_instance_absent_alarm" {
     notifies nobody.
 
     Only useful on an instance with a start/stop schedule, and only alongside an office-hours gate
-    that disarms its actions while the instance is meant to be off (see the alarm_office_hours_gate module) --
+    that disarms its actions while the instance is meant to be off (see alarm_office_hours_gate) --
     ungated it fires on every scheduled stop.
 
     ok_actions are deliberately empty: the gate's morning reset is an ALARM -> OK transition and
@@ -34,4 +34,29 @@ variable "create_instance_absent_alarm" {
   EOT
   type        = bool
   default     = false
+}
+
+variable "create_schedule_overrun_alarm" {
+  description = <<-EOT
+    Create an alarm that fires when the DB instance ran for MORE minutes in a day than its schedule
+    allows -- a stop that silently did not happen. Needs no office-hours gate because it counts
+    rather than samples: CPUUtilization publishes exactly one datapoint per minute while the instance
+    lives, so the daily SampleCount IS the number of minutes it ran.
+
+    A 13h25 weekday window is 805 datapoints; an instance that never stopped is 1440. Weekends
+    produce no data, hence treat_missing_data = notBreaching -- absence is the good case.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "schedule_overrun_max_minutes_per_day" {
+  description = "Minutes per day above which the instance is considered to have overrun its schedule. Set comfortably above the real window and below 1440."
+  type        = number
+  default     = 1000
+
+  validation {
+    condition     = var.schedule_overrun_max_minutes_per_day > 0 && var.schedule_overrun_max_minutes_per_day < 1440
+    error_message = "schedule_overrun_max_minutes_per_day must be between 1 and 1439 (1440 = always on, which can never breach)."
+  }
 }

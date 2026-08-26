@@ -110,7 +110,7 @@ resource "aws_cloudwatch_metric_alarm" "disk" {
 # armed only during the hours the host is meant to be running; the one above takes "notBreaching"
 # and stays armed around the clock for a host that is running but broken.
 #
-# Measured 2026-08-26 on lg-autoflow prod: the scheduler's StartInstances call returned success, EC2
+# Measured 2026-08-26 on this stack: the scheduler's StartInstances call returned success, EC2
 # failed the launch internally (StateTransitionReason Server.InternalError), the host never booted
 # -- no boot record, zero CPU datapoints -- and nothing alarmed for nine hours, because the only
 # host alarm was notBreaching for exactly the reason written above it.
@@ -143,6 +143,41 @@ resource "aws_cloudwatch_metric_alarm" "host_absent" {
   lifecycle {
     ignore_changes = [actions_enabled]
   }
+
+  tags = merge(var.tags, { ManagedBy = "Terraform" })
+}
+
+# =============================================================================
+# Schedule overrun -- the host is still running when it should have stopped.
+#
+# The failed-start case (host_absent above) costs availability; this one costs money and shows up
+# nowhere else: a stop whose API call succeeded but whose instance stayed up produces no error, no
+# DLQ message, and no alarm. It surfaces on the bill weeks later.
+#
+# Counting beats sampling here. StatusCheckFailed publishes exactly one datapoint per minute while
+# the instance lives (verified on a live t3.large, 2026-08-26: 10 datapoints in 10 minutes), so
+# the daily SampleCount is literally the number of minutes it ran. No gate needed -- the alarm is
+# blind to WHEN the host ran, only to HOW LONG.
+# =============================================================================
+resource "aws_cloudwatch_metric_alarm" "schedule_overrun" {
+  count = var.create_schedule_overrun_alarm ? 1 : 0
+
+  alarm_name          = "${var.app_name}-schedule-overrun"
+  alarm_description   = "Instance ${var.instance_id} ran more than ${var.schedule_overrun_max_minutes_per_day} minutes in a day -- a scheduled stop did not take effect. Cost leak, not an outage."
+  namespace           = "AWS/EC2"
+  metric_name         = "StatusCheckFailed"
+  statistic           = "SampleCount"
+  dimensions          = local.dims
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = var.schedule_overrun_max_minutes_per_day
+  period              = 86400
+  evaluation_periods  = 1
+
+  # Absence is the good case: a full weekend produces no datapoints at all.
+  treat_missing_data = "notBreaching"
+
+  alarm_actions = [var.sns_topic_arn]
+  ok_actions    = []
 
   tags = merge(var.tags, { ManagedBy = "Terraform" })
 }

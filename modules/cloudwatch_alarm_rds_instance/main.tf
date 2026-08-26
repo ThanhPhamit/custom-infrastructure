@@ -212,3 +212,45 @@ resource "aws_cloudwatch_metric_alarm" "rds_instance_absent" {
     }
   )
 }
+
+#
+# Schedule overrun — the database is still running when it should have stopped.
+#
+# Companion to rds_instance_absent: that one costs availability, this one costs money and is
+# invisible everywhere else. A stop whose API call succeeded but whose instance stayed up produces
+# no error, no DLQ message, and no alarm — only a larger bill, weeks later.
+#
+# Counting, not sampling: CPUUtilization publishes one datapoint per minute while the instance lives
+# (verified on a live db.t4g.micro, 2026-08-26), so the daily SampleCount is the minutes it ran.
+# The alarm is blind to WHEN it ran, only to HOW LONG — so it needs no office-hours gate.
+#
+resource "aws_cloudwatch_metric_alarm" "rds_schedule_overrun" {
+  count = var.create_schedule_overrun_alarm ? 1 : 0
+
+  alarm_name          = "${var.app_name}_rds_schedule_overrun"
+  alarm_description   = "DB instance ${var.rds_db_instance_identifier} ran more than ${var.schedule_overrun_max_minutes_per_day} minutes in a day -- a scheduled stop did not take effect. Cost leak, not an outage."
+  namespace           = "AWS/RDS"
+  metric_name         = "CPUUtilization"
+  statistic           = "SampleCount"
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = var.schedule_overrun_max_minutes_per_day
+  period              = 86400
+  evaluation_periods  = 1
+
+  # Absence is the good case: a full weekend produces no datapoints at all.
+  treat_missing_data = "notBreaching"
+
+  alarm_actions = [var.chatbot_alert_sns_topic_arn]
+  ok_actions    = []
+
+  dimensions = {
+    DBInstanceIdentifier = var.rds_db_instance_identifier
+  }
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.app_name}-rds-schedule-overrun"
+    }
+  )
+}
