@@ -17,3 +17,21 @@ variable "tags" {
   description = "Tags to apply to resources"
   default     = {}
 }
+
+variable "create_instance_absent_alarm" {
+  description = <<-EOT
+    Create an alarm that fires when the DB instance publishes NO metrics at all -- it is stopped,
+    deleted, or failed to start. The six threshold alarms above cannot answer this: they run
+    treat_missing_data = "missing", so a stopped instance takes them to INSUFFICIENT_DATA and
+    notifies nobody.
+
+    Only useful on an instance with a start/stop schedule, and only alongside an office-hours gate
+    that disarms its actions while the instance is meant to be off (see the alarm_office_hours_gate module) --
+    ungated it fires on every scheduled stop.
+
+    ok_actions are deliberately empty: the gate's morning reset is an ALARM -> OK transition and
+    would otherwise post to Slack every working day.
+  EOT
+  type        = bool
+  default     = false
+}

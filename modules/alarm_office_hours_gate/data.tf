@@ -17,6 +17,12 @@ locals {
   # because truncation silently collapses two long alarm names into one schedule.
   reset_names = {
     for n in var.alarm_names :
-    n => format("%s-alarm-reset-%s", var.app_name, trimprefix(n, "${var.app_name}-"))
+    n => format("%s-alarm-reset-%s", var.app_name,
+      # Both separators: some modules name alarms "<app>-<thing>", others "<app>_<thing>".
+      # Stripping only the hyphen form leaves the full prefix in place for the others and the
+      # 64-char schedule name lands exactly on the limit -- passing today, failing on the next
+      # slightly longer app_name.
+      trimprefix(trimprefix(n, "${var.app_name}-"), "${var.app_name}_")
+    )
   }
 }
