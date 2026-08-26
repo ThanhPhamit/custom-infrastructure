@@ -94,3 +94,20 @@ variable "status_check_treat_missing_data" {
     error_message = "Must be one of: breaching, notBreaching, ignore, missing."
   }
 }
+
+variable "create_host_absent_alarm" {
+  description = <<-EOT
+    Create a SECOND alarm on the same StatusCheckFailed metric, but with treat_missing_data =
+    "breaching", to answer the question the status-check alarm deliberately cannot: "the host is
+    supposed to be running right now and it is not there at all".
+
+    Only useful on a host with a start/stop schedule, and only alongside an office-hours gate that
+    disarms this alarm's actions while the host is meant to be off (see the alarm_office_hours_gate module)
+    -- ungated it pages on every scheduled stop.
+
+    Its ok_actions are deliberately EMPTY. The gate resets it to OK each morning before re-arming,
+    and an OK notification on that reset would be a daily message that means nothing.
+  EOT
+  type        = bool
+  default     = false
+}

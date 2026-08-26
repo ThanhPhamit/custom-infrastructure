@@ -19,3 +19,8 @@ output "alarm_arns" {
     var.create_disk_alarm ? { disk = aws_cloudwatch_metric_alarm.disk[0].arn } : {},
   )
 }
+
+output "host_absent_alarm_name" {
+  description = "Name of the host-absent alarm (null unless create_host_absent_alarm). Feed this to the alarm_office_hours_gate module."
+  value       = one(aws_cloudwatch_metric_alarm.host_absent[*].alarm_name)
+}
