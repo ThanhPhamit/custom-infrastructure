@@ -154,6 +154,32 @@ module "cloudwatch_alarm_rds" {
 | 5GB   | 5000000000  |
 | 10GB  | 10000000000 |
 
+## Scheduled instances: what the six threshold alarms cannot see
+
+The six alarms above all run `treat_missing_data = "missing"`, which is right for a 24/7 database and
+leaves two holes on one that starts and stops on a schedule. Both extra alarms default **off**.
+
+| Variable | Answers | Needs a gate? |
+|---|---|---|
+| `create_instance_absent_alarm` | "the database should be running right now and it is not there at all" — a failed start, a stopped or deleted instance | **Yes** |
+| `create_schedule_overrun_alarm` | "the database is still running when it should have stopped" | No |
+
+**Why the absent alarm matters more here than on the app host.** A stopped database takes the six
+threshold alarms to INSUFFICIENT_DATA, which notifies nobody — and unlike a stopped host, the
+service does not even look down: the app boots normally and a shallow health check still returns 200
+because it never touches the database. The first symptom is a person failing to log in.
+
+There is no RDS metric for "instance is stopped", so the alarm uses the only shape CloudWatch allows:
+a metric published every 60 s while the instance lives (`CPUUtilization`), plus a condition real data
+can never satisfy (`SampleCount < 1`). `treat_missing_data = "breaching"` does the actual detection.
+`ok_actions` is empty and `actions_enabled` sits under `lifecycle` `ignore_changes`, because the
+`alarm_office_hours_gate` module drives both through the CloudWatch API.
+
+**`create_schedule_overrun_alarm`** + `schedule_overrun_max_minutes_per_day` (default 1000) counts
+instead of sampling and therefore needs no gate: the daily `SampleCount` of `CPUUtilization` **is**
+minutes-run. A 13h25 window is 805 datapoints; never-stopped is 1440. Weekends produce no data,
+hence `notBreaching`.
+
 ## Inputs
 
 | Name                                                 | Description                          | Type          | Default | Required |

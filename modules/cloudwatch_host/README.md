@@ -63,6 +63,31 @@ that vanished outside working hours.
 
 Accepted values: `breaching`, `notBreaching`, `ignore`, `missing` (validated).
 
+### Scheduled hosts: two more alarms you almost certainly want
+
+Setting `status_check_treat_missing_data = "notBreaching"` above closes the nightly-paging problem
+and opens two holes. Both are optional extra alarms, both default **off**, and both were added after
+a real nine-hour outage on 2026-08-26 that neither existing alarm could see.
+
+| Variable | Answers | Needs a gate? |
+|---|---|---|
+| `create_host_absent_alarm` | "the host should be running right now and it is not there at all" — a failed start, a stopped instance, a terminated one | **Yes** |
+| `create_schedule_overrun_alarm` | "the host is still running when it should have stopped" — a stop that silently did not happen | No |
+
+**`create_host_absent_alarm`** is a second alarm on the same `StatusCheckFailed` metric with
+`treat_missing_data = "breaching"`, empty `ok_actions`, and `actions_enabled` under `lifecycle`
+`ignore_changes`. Ungated it pages on every scheduled stop, so pair it with the
+`alarm_office_hours_gate` module, which disarms its actions outside working hours and — crucially —
+resets it to OK each morning *after* re-arming, because enabling actions is not a state transition
+and an alarm that sat in ALARM all night notifies nobody.
+
+**`create_schedule_overrun_alarm`** + `schedule_overrun_max_minutes_per_day` (default 1000) counts
+rather than samples, which is why it needs no gate: `StatusCheckFailed` publishes exactly one
+datapoint per minute while the instance lives, so the daily `SampleCount` **is** the number of
+minutes it ran. A 13-hour weekday window is 780; an instance that never stopped is 1440. Weekends
+produce no data at all, hence `notBreaching`. A UTC day always contains exactly one such window, so
+the threshold needs no correction for a non-UTC schedule.
+
 ## Outputs
 
 `log_group_name`, `log_group_arn`, `alarm_arns` (map).
