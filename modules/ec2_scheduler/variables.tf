@@ -88,3 +88,24 @@ variable "dead_letter_arn" {
   type        = string
   default     = null
 }
+
+variable "additional_start_expressions" {
+  description = <<-EOT
+    Extra cron expressions that fire the SAME start action a few minutes after start_expression.
+    Retries, in other words -- and they are free of risk because StartInstances on an instance that
+    is already running returns running/running with no error (measured 2026-08-27), so a retry that
+    was not needed does nothing at all.
+
+    Why this exists: a StartInstances call can return success while EC2 then fails the launch
+    internally (StateTransitionReason "Server.InternalError"), leaving the instance stopped. The API
+    reported success, so nothing retries it, no DLQ message is produced, and the host is simply
+    absent until a human notices. Measured on a live single-instance stack: the 08:00 scheduled start failed
+    that way on two consecutive weekdays while every start issued at another time of day succeeded,
+    which is a strong hint that the exact hour boundary is the problem -- but AWS does not expose the
+    reason, so the fix must work without knowing it.
+
+    Two retries a few minutes apart turn a nine-hour outage into a four-minute one, unattended.
+  EOT
+  type        = list(string)
+  default     = []
+}

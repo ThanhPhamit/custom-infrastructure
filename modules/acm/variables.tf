@@ -12,10 +12,23 @@ variable "create_expiry_alarm" {
     ACM renews automatically, but only while its DNS validation record still exists and still
     resolves. Nothing about a broken validation record is visible until renewal fails, and renewal
     happens once a year -- so the failure surfaces as sudden TLS errors on a date nobody is watching.
-    Seen in practice: two Terraform roots held the same validation record
+    This project has already had a near miss: two Terraform roots held the same validation record
     addresses, and destroying one would have silently disarmed renewal seven months later.
 
     Cheap insurance against a once-a-year, no-warning failure.
+
+    Two facts measured on 2026-08-27, both of which change when this alarm means anything:
+
+      - ACM publishes DaysToExpiry ONLY for certificates that are in use by an integrated service.
+        An unused certificate never produces the metric -- confirmed by importing one and waiting:
+        no datapoint after nine hours, while every in-use certificate in the same account reports
+        daily. A consequence worth knowing: with treat_missing_data = "breaching", this alarm also
+        fires if the certificate stops being attached to anything, which is usually a real problem.
+
+      - The metric is published once a day, so the alarm cannot be exercised on demand. Its wiring
+        can be proven (a wrong dimension gives no data, which "breaching" turns into ALARM -- so an
+        alarm sitting in OK is itself evidence the dimension resolves), but a real firing has to
+        wait for a certificate to genuinely approach expiry.
   EOT
   type        = bool
   default     = false

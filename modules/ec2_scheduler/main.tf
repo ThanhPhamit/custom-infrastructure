@@ -110,6 +110,42 @@ resource "aws_scheduler_schedule" "start" {
   }
 }
 
+# Retry schedules. Same target, same input, a few minutes later -- see additional_start_expressions.
+# for_each over the expression itself keeps the address stable when the list is reordered.
+resource "aws_scheduler_schedule" "start_retry" {
+  for_each = toset(var.additional_start_expressions)
+
+  name       = "${var.app_name}-start-retry-${substr(md5(each.value), 0, 8)}"
+  group_name = "default"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  schedule_expression          = each.value
+  schedule_expression_timezone = var.timezone
+  state                        = local.state
+  kms_key_arn                  = var.kms_key_arn
+
+  target {
+    arn      = "arn:aws:scheduler:::aws-sdk:ec2:startInstances"
+    role_arn = aws_iam_role.scheduler.arn
+    input    = jsonencode({ InstanceIds = local.instance_ids })
+
+    retry_policy {
+      maximum_retry_attempts       = var.retry_maximum_attempts
+      maximum_event_age_in_seconds = var.retry_maximum_event_age_seconds
+    }
+
+    dynamic "dead_letter_config" {
+      for_each = var.dead_letter_arn == null ? [] : [var.dead_letter_arn]
+      content {
+        arn = dead_letter_config.value
+      }
+    }
+  }
+}
+
 resource "aws_scheduler_schedule" "stop" {
   name       = "${var.app_name}-stop"
   group_name = "default"
