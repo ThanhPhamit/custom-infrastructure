@@ -1,7 +1,7 @@
 # =============================================================================
 # No healthy target behind the ALB.
 #
-# Measured on a live single-instance ALB stack, 2026-08-26: while the instance was stopped the ALB published NO
+# Measured on a live single-instance ALB stack, 2026-08-26: while the instance was stopped the ALB
 # HealthyHostCount datapoints for the whole outage -- absence, not a zero -- which is why the
 # missing-data policy, not the threshold, is what makes this alarm work.
 # =============================================================================

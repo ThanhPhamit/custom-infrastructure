@@ -167,7 +167,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_freeable_storage_space_alert" {
 # CloudWatch allows: take a metric the instance publishes every 60 s while it lives, pick a
 # condition real data can never satisfy, and let treat_missing_data do the work. SampleCount on
 # CPUUtilization is exactly 1 per 60 s period while the instance runs (measured on
-# prod-tyo-lg-autoflow, 2026-08-26: eleven consecutive periods, SampleCount 1.0, no gaps), so
+# a live db.t4g.micro, 2026-08-26: eleven consecutive periods, SampleCount 1.0, no gaps), so
 # "< 1" is unreachable with data present and the alarm can only fire on absence.
 #
 # Why this exists: on 2026-08-26 the EC2 host failed to start and nothing alarmed for nine hours.

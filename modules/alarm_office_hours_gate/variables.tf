@@ -10,7 +10,7 @@
 # =============================================================================
 
 variable "app_name" {
-  description = "Naming prefix for the schedules + IAM role (e.g. prod-tyo-lg-autoflow)."
+  description = "Naming prefix for the schedules + IAM role (e.g. prod-tyo-myapp)."
   type        = string
 
   validation {

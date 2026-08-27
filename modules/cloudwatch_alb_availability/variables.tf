@@ -8,7 +8,7 @@
 # =============================================================================
 
 variable "app_name" {
-  description = "Naming prefix for the alarm (e.g. prod-tyo-lg-autoflow)."
+  description = "Naming prefix for the alarm (e.g. prod-tyo-myapp)."
   type        = string
 
   validation {

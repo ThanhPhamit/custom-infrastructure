@@ -194,7 +194,7 @@ resource "aws_cloudwatch_metric_alarm" "host_absent" {
 # DLQ message, and no alarm. It surfaces on the bill weeks later.
 #
 # Counting beats sampling here. StatusCheckFailed publishes exactly one datapoint per minute while
-# the instance lives (verified on i-08768783b3669834f, 2026-08-26: 10 datapoints in 10 minutes), so
+# the instance lives (verified on a live t3.large, 2026-08-26: 10 datapoints in 10 minutes), so
 # the daily SampleCount is literally the number of minutes it ran. No gate needed -- the alarm is
 # blind to WHEN the host ran, only to HOW LONG.
 # =============================================================================

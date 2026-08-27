@@ -105,6 +105,11 @@ variable "additional_start_expressions" {
     reason, so the fix must work without knowing it.
 
     Two retries a few minutes apart turn a nine-hour outage into a four-minute one, unattended.
+
+    Do NOT copy this idea to rds_scheduler. rds:StartDBInstance on an already-available instance
+    returns InvalidDBInstanceState -- an error, not a no-op -- so an unnecessary RDS retry exhausts
+    its retry_policy and lands in the dead-letter queue, turning every ordinary morning into a false
+    page. Both behaviours measured 2026-08-27; the reasoning is written out in that module.
   EOT
   type        = list(string)
   default     = []

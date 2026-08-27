@@ -16,7 +16,7 @@ policy, and on a scheduled resource both choices are wrong:
 Gating the alarm's **actions** by time lets it keep `breaching` and still stay quiet while the
 resource is legitimately off.
 
-Measured on `prod-tyo-lg-autoflow`, 2026-08-26: a scheduler `StartInstances` call returned success,
+Measured on a live single-instance stack, 2026-08-26: a scheduler `StartInstances` call returned success,
 EC2 failed the launch internally (`Server.InternalError`), the host never booted, and nothing
 alarmed for nine hours because the only host alarm was `notBreaching`.
 
