@@ -29,6 +29,45 @@ resource "aws_cloudwatch_metric_alarm" "cpu" {
   alarm_actions = [var.sns_topic_arn]
   ok_actions    = [var.sns_topic_arn]
 
+  lifecycle {
+    precondition {
+      # Must mention create_disk_alarm explicitly: Terraform still evaluates a precondition for an
+      # instance it is DESTROYING, so a bare length() check fails the very migration away from this
+      # alarm that the check exists to encourage.
+      condition     = !var.create_disk_alarm || length(var.disk_paths) <= 1
+      error_message = "create_disk_alarm reads the InstanceId-only rollup with statistic Average, which averages across every filesystem the agent reports. With more than one path collected it goes blind to a full one. Set create_disk_alarm = false and use disk_paths instead."
+    }
+  }
+
+  tags = merge(var.tags, { ManagedBy = "Terraform" })
+}
+
+# =============================================================================
+# Per-filesystem disk alarms. See var.disk_paths for why the aggregate above cannot be reused once
+# the agent reports more than one path.
+# =============================================================================
+resource "aws_cloudwatch_metric_alarm" "disk_path" {
+  for_each = toset(var.disk_paths)
+
+  alarm_name          = "${var.app_name}-disk-high-${each.value == "/" ? "root" : trim(replace(each.value, "/", "-"), "-")}"
+  alarm_description   = "CWAgent disk_used_percent on ${each.value} >= ${var.disk_threshold}% on ${var.instance_id}"
+  namespace           = var.cwagent_namespace
+  metric_name         = "disk_used_percent"
+  statistic           = "Maximum"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  threshold           = var.disk_threshold
+  period              = var.period
+  evaluation_periods  = var.evaluation_periods
+  treat_missing_data  = "missing"
+
+  dimensions = {
+    InstanceId = var.instance_id
+    path       = each.value
+  }
+
+  alarm_actions = [var.sns_topic_arn]
+  ok_actions    = [var.sns_topic_arn]
+
   tags = merge(var.tags, { ManagedBy = "Terraform" })
 }
 
@@ -155,7 +194,7 @@ resource "aws_cloudwatch_metric_alarm" "host_absent" {
 # DLQ message, and no alarm. It surfaces on the bill weeks later.
 #
 # Counting beats sampling here. StatusCheckFailed publishes exactly one datapoint per minute while
-# the instance lives (verified on a live t3.large, 2026-08-26: 10 datapoints in 10 minutes), so
+# the instance lives (verified on i-08768783b3669834f, 2026-08-26: 10 datapoints in 10 minutes), so
 # the daily SampleCount is literally the number of minutes it ran. No gate needed -- the alarm is
 # blind to WHEN the host ran, only to HOW LONG.
 # =============================================================================

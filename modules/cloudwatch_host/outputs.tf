@@ -27,9 +27,12 @@ output "host_absent_alarm_name" {
 
 output "threshold_alarm_names" {
   description = "Names of the CPU/memory/disk threshold alarms that exist. These carry ok_actions and cycle INSUFFICIENT_DATA -> OK every time a scheduled host boots, so feed them to alarm_office_hours_gate's alarm_names_no_reset to keep that boot-time recovery silent without losing a real daytime one."
-  value = compact([
-    aws_cloudwatch_metric_alarm.cpu.alarm_name,
-    try(aws_cloudwatch_metric_alarm.memory[0].alarm_name, ""),
-    try(aws_cloudwatch_metric_alarm.disk[0].alarm_name, ""),
-  ])
+  value = concat(
+    compact([
+      aws_cloudwatch_metric_alarm.cpu.alarm_name,
+      try(aws_cloudwatch_metric_alarm.memory[0].alarm_name, ""),
+      try(aws_cloudwatch_metric_alarm.disk[0].alarm_name, ""),
+    ]),
+    [for a in aws_cloudwatch_metric_alarm.disk_path : a.alarm_name],
+  )
 }

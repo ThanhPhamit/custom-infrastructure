@@ -137,3 +137,22 @@ variable "schedule_overrun_max_minutes_per_day" {
     error_message = "schedule_overrun_max_minutes_per_day must be between 1 and 1439 (1440 = always on, which can never breach)."
   }
 }
+
+variable "disk_paths" {
+  description = <<-EOT
+    Filesystem paths to alarm on individually, e.g. ["/", "/data"]. One alarm per path, dimensioned
+    {InstanceId, path}.
+
+    Use this instead of create_disk_alarm whenever the agent reports more than one filesystem. The
+    reason is a trap worth stating plainly: the CloudWatch agent rolls disk metrics up according to
+    its aggregation_dimensions, and the InstanceId-only rollup that create_disk_alarm reads is an
+    AVERAGE across every filesystem. A root filesystem at 95% next to a data volume at 5% averages to
+    50% and never breaches an 85% threshold -- so adding a second path to the agent silently blinds
+    the alarm that was already there.
+
+    Requires the agent config to publish an ["InstanceId","path"] aggregation; without it these
+    alarms sit in INSUFFICIENT_DATA.
+  EOT
+  type        = list(string)
+  default     = []
+}
