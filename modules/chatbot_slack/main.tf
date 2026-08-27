@@ -107,3 +107,79 @@ resource "aws_sns_topic" "chatbot" {
     }
   )
 }
+
+# =============================================================================
+# Explicit topic policy. Only created when the caller needs a non-alarm publisher (EventBridge);
+# otherwise the topic keeps AWS's default policy, which already permits CloudWatch alarms.
+#
+# The danger here is what is MISSING rather than what is present: attaching any policy discards the
+# default, so this document must restate everything the default provided. See
+# var.allow_eventbridge_publish.
+# =============================================================================
+data "aws_caller_identity" "current" {}
+
+data "aws_iam_policy_document" "topic" {
+  count = var.allow_eventbridge_publish ? 1 : 0
+
+  # Equivalent of the default statement AWS attaches to a new topic: the owning account may manage
+  # and publish to it. Dropping this would break console and Terraform management of the topic.
+  statement {
+    sid    = "OwnerFullControl"
+    effect = "Allow"
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+    actions = [
+      "SNS:GetTopicAttributes", "SNS:SetTopicAttributes", "SNS:AddPermission",
+      "SNS:RemovePermission", "SNS:DeleteTopic", "SNS:Subscribe",
+      "SNS:ListSubscriptionsByTopic", "SNS:Publish",
+    ]
+    resources = [aws_sns_topic.chatbot.arn]
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceOwner"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+
+  # Granted explicitly rather than relying on the default: every alarm on this topic depends on it.
+  statement {
+    sid    = "AllowCloudWatchAlarms"
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["cloudwatch.amazonaws.com"]
+    }
+    actions   = ["SNS:Publish"]
+    resources = [aws_sns_topic.chatbot.arn]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+
+  statement {
+    sid    = "AllowEventBridgeRules"
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+    actions   = ["SNS:Publish"]
+    resources = [aws_sns_topic.chatbot.arn]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+}
+
+resource "aws_sns_topic_policy" "chatbot" {
+  count = var.allow_eventbridge_publish ? 1 : 0
+
+  arn    = aws_sns_topic.chatbot.arn
+  policy = data.aws_iam_policy_document.topic[0].json
+}

@@ -30,3 +30,21 @@ variable "create_slack_channel_config" {
   type        = bool
   default     = true
 }
+
+variable "allow_eventbridge_publish" {
+  description = <<-EOT
+    Attach an explicit topic policy that lets EventBridge (events.amazonaws.com) publish to this
+    topic, for rules that notify Slack directly rather than through a CloudWatch alarm.
+
+    Read this before enabling it. An aws_sns_topic_policy REPLACES the default policy AWS attaches to
+    a new topic, and that default is what currently lets CloudWatch alarms publish. The policy
+    written here therefore restates account-owner access and grants cloudwatch.amazonaws.com
+    explicitly as well -- leaving either out silently kills every alarm notification on this topic,
+    which is the exact failure mode an alerting change must never introduce.
+
+    Both service grants are scoped with aws:SourceAccount so another account's EventBridge or
+    CloudWatch cannot publish here.
+  EOT
+  type        = bool
+  default     = false
+}

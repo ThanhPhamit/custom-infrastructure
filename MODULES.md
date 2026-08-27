@@ -9,7 +9,7 @@
 | aurora_postgresql | Aurora PostgreSQL cluster with RDS-managed master secret | app_name, vpc_id, subnet_ids, allowed_cidr_blocks | cluster_endpoint, cluster_reader_endpoint, cluster_resource_id, master_user_secret_arn, security_group_id, db_subnet_group_name +3 more | — |
 | aws_oidc_with_github_actions | GitHub Actions OIDC provider + CI IAM role | app_name, github_org, github_repositories, passrole_target_role_arns | oidc_provider_arn, iam_role_arn, iam_role_name, iam_policy_arn | — |
 | bastion_host | EC2 bastion with SSM access, optional scheduler | app_name, ami_id, vpc_id, subnet_id | bastion_instance_id, bastion_public_ip, bastion_security_group_id, ssm_start_session_command, ssh_config, elastic_ip +9 more | — |
-| chatbot_slack | AWS Chatbot Slack channel + SNS topic | app_name, slack_workspace_id, slack_channel_id, slack_channel_name | chatbot_sns_topic_arn | — |
+| chatbot_slack | AWS Chatbot Slack channel + SNS topic (+ optional EventBridge-publish topic policy) | app_name, slack_workspace_id, slack_channel_id, slack_channel_name | chatbot_sns_topic_arn | — |
 | client_VPN_endpoints | Client VPN endpoint with self-signed TLS certs | app_name, vpn_domain, vpc_id, subnet_ids, private_subnet_cidrs, enable_vpn_associations | — | — |
 | cloudfront | CloudFront distribution fronting ALB origin + Route53 | app_name, alb_domain_name | cloudfront_distribution_id, cloudfront_domain_name, custom_domain, cloudfront_function_arn, access_urls, cloudfront_distribution_arn +2 more | — |
 | cloudwatch_alarm_ecs | ECS alarms, ALB 5xx alarms, composite alarm, autoscaling policies | app_name, aws_region, cw_alarm_cluster_name, cw_alarm_service_name, chatbot_notice_sns_topic_arn, chatbot_alert_sns_topic_arn +13 more | — | — |
@@ -22,6 +22,7 @@
 | dlm_ebs_snapshots | DLM scheduled EBS snapshots + self-contained service role (INSTANCE, exclude boot vol) | app_name, target_tags | policy_id, policy_arn, execution_role_arn | singapore-prod |
 | ec2_instance | General EC2 instance with optional EIP, EBS | app_name, ami_id, instance_type, vpc_id, subnet_id | instance_id, private_ip, public_ip, security_group_id, data_volume_id, instance_role_arn +3 more | — |
 | ec2_scheduler | EventBridge Scheduler EC2 start/stop schedules | app_name, instance_arns | start_schedule_arn, stop_schedule_arn, scheduler_role_arn, managed_instance_ids | — |
+| dlm_policy_health | EventBridge rules that notice DLM backups erroring, being switched off, or failing | app_name, sns_topic_arn | rule_names | tokyo-prod |
 | ecr_private_registry | Private ECR repository with lifecycle policy | repository_name | repository_url, repository_arn | — |
 | ecs | ECS Fargate service, blue/green target groups, optional app-secret container | app_name, region, container_names, container_port, vpc_id, cluster_name +13 more (create_app_secret, secret_arns, cpu_architecture, …) | service_name, task_definition_arn, app_secrets_arn, ecs_task_role_arn, lb_target_group_blue_arn, lb_target_group_green_arn +11 more | — |
 | ecs_cluster | Standalone ECS cluster | app_name | cluster_name, cluster_arn | — |
