@@ -85,8 +85,9 @@ and an alarm that sat in ALARM all night notifies nobody.
 rather than samples, which is why it needs no gate: `StatusCheckFailed` publishes exactly one
 datapoint per minute while the instance lives, so the daily `SampleCount` **is** the number of
 minutes it ran. A 13-hour weekday window is 780; an instance that never stopped is 1440. Weekends
-produce no data at all, hence `notBreaching`. A UTC day always contains exactly one such window, so
-the threshold needs no correction for a non-UTC schedule.
+produce no data at all, hence `notBreaching`. The alarm evaluates a **rolling 24-hour**
+window, not a calendar day; any rolling 24 h holds at most one such run, so the threshold needs no
+correction for a non-UTC schedule — but do not reason about it as a calendar day.
 
 ## Outputs
 

@@ -128,7 +128,7 @@ variable "create_schedule_overrun_alarm" {
 }
 
 variable "schedule_overrun_max_minutes_per_day" {
-  description = "Minutes per day above which the host is considered to have overrun its schedule. Set it comfortably above the real window (13 h = 780) and below 1440. Note a UTC day always contains exactly one such window, so the number does not need adjusting for the JST/UTC offset."
+  description = "Minutes per day above which the host is considered to have overrun its schedule. Set it comfortably above the real window (13 h = 780) and below 1440. The alarm evaluates a ROLLING 24-hour window, not a calendar day -- and any rolling 24 h contains at most one such run, because consecutive runs are separated by more off-hours than on-hours. So the number needs no adjusting for a non-UTC schedule, but do not reason about it as a calendar day (measured 2026-08-27: the alarm read 832 while a calendar-day query of the same metric read 776)."
   type        = number
   default     = 1000
 
