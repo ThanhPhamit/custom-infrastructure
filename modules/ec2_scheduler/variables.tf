@@ -114,3 +114,29 @@ variable "additional_start_expressions" {
   type        = list(string)
   default     = []
 }
+
+variable "volume_kms_key_arns" {
+  description = <<-EOT
+    Customer-managed KMS key ARNs encrypting the instances' EBS volumes. REQUIRED whenever the root
+    or data volumes use a CMK; leave empty only for unencrypted volumes or the AWS-managed aws/ebs
+    key, whose own key policy grants access through the service.
+
+    Miss this and the schedule fails in the most expensive way available. Stopping an instance needs
+    no key, so the evening stop works. Starting one does: EC2 must obtain a grant on the CMK as the
+    CALLER, and a CMK whose key policy is the usual "kms:* to the account root" delegates that
+    decision entirely to the caller's IAM policy. This role's policy grants EC2 and SQS actions only,
+    so the start is accepted -- StartInstances returns pending with no error -- and EC2 then fails
+    the launch internally, leaving the instance stopped with StateTransitionReason
+    "Server.InternalError". No error code names KMS anywhere in that chain.
+
+    Measured 2026-08-28 on a live stack after three days of it: every scheduler-initiated start
+    failed, every start issued by an administrator (whose IAM carries kms:*) succeeded, and
+    simulate-principal-policy returned implicitDeny for CreateGrant, Decrypt, DescribeKey and
+    GenerateDataKeyWithoutPlaintext against the volumes' CMK.
+
+    rds_scheduler needs no equivalent: RDS starts an encrypted instance through its own service
+    access, and those schedules kept working throughout.
+  EOT
+  type        = list(string)
+  default     = []
+}

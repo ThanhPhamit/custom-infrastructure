@@ -1,4 +1,5 @@
 data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
 
 locals {
   # Derive instance IDs from the ARNs (…:instance/i-0abc… → i-0abc…).
@@ -54,6 +55,49 @@ data "aws_iam_policy_document" "perms" {
     effect    = "Allow"
     actions   = ["ec2:StartInstances", "ec2:StopInstances"]
     resources = var.instance_arns
+  }
+
+  # Starting an instance whose EBS volumes use a customer-managed CMK requires the CALLER to be able
+  # to use that key -- EC2 obtains the grant on its behalf. Without this the stop half of the
+  # schedule works and the start half fails silently (see var.volume_kms_key_arns).
+  #
+  # Scoped twice over: to the given keys, and to use THROUGH EC2 only, so the role cannot decrypt
+  # anything else those keys protect. CreateGrant additionally carries GrantIsForAWSResource, which
+  # limits it to grants AWS services create for themselves.
+  dynamic "statement" {
+    for_each = length(var.volume_kms_key_arns) > 0 ? [1] : []
+    content {
+      sid    = "UseVolumeKeysViaEC2"
+      effect = "Allow"
+      actions = [
+        "kms:Decrypt",
+        "kms:DescribeKey",
+        "kms:GenerateDataKeyWithoutPlaintext",
+        "kms:ReEncryptFrom",
+        "kms:ReEncryptTo",
+      ]
+      resources = var.volume_kms_key_arns
+      condition {
+        test     = "StringEquals"
+        variable = "kms:ViaService"
+        values   = ["ec2.${data.aws_region.current.region}.amazonaws.com"]
+      }
+    }
+  }
+
+  dynamic "statement" {
+    for_each = length(var.volume_kms_key_arns) > 0 ? [1] : []
+    content {
+      sid       = "CreateVolumeGrantsForEC2"
+      effect    = "Allow"
+      actions   = ["kms:CreateGrant"]
+      resources = var.volume_kms_key_arns
+      condition {
+        test     = "Bool"
+        variable = "kms:GrantIsForAWSResource"
+        values   = ["true"]
+      }
+    }
   }
 
   # Only granted when a dead-letter queue is actually configured — an unused SendMessage grant is
